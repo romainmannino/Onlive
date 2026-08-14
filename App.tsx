@@ -1,1 +1,1 @@
-export { default } from './src/MainApp';
+export { default } from './src/Root';
