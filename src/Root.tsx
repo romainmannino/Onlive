@@ -1,14 +1,19 @@
 import React,{useEffect,useState}from'react';
-import{StyleSheet,TouchableOpacity,View}from'react-native';
-import{Ionicons}from'@expo/vector-icons';
 import MainApp from'./MainApp';
 import ChatScreen from'./ChatScreen';
 import{supabase}from'./supabase';
 
+type ChatTarget={userId:string;name:string;programId:string|null;programTitle:string;channel:string};
+
 export default function Root(){
- const[mode,setMode]=useState<'app'|'chat'>('app');const[userId,setUserId]=useState<string|null>(null);
+ const[mode,setMode]=useState<'app'|'chat'>('app');
+ const[userId,setUserId]=useState<string|null>(null);
+ const[chatTarget,setChatTarget]=useState<ChatTarget|null>(null);
+ const[unreadCount,setUnreadCount]=useState(0);
  useEffect(()=>{supabase.auth.getSession().then(({data})=>setUserId(data.session?.user.id||null));const{data:l}=supabase.auth.onAuthStateChange((_e,s)=>setUserId(s?.user.id||null));return()=>l.subscription.unsubscribe()},[]);
- if(mode==='chat'&&userId)return<ChatScreen userId={userId} onBack={()=>setMode('app')} onHome={()=>setMode('app')} onContacts={()=>setMode('app')}/>;
- return<View style={{flex:1}}><MainApp/>{userId&&<TouchableOpacity onPress={()=>setMode('chat')} style={s.chatFab}><Ionicons name="chatbubbles" size={23} color="#fff"/></TouchableOpacity>}</View>
+ useEffect(()=>{if(!userId){setUnreadCount(0);return}let alive=true;const refresh=async()=>{const{data}=await supabase.rpc('chat_unread_count');if(alive)setUnreadCount(Number(data)||0)};refresh();const t=setInterval(refresh,2000);return()=>{alive=false;clearInterval(t)}},[userId]);
+ const openDiscussions=()=>{setChatTarget(null);setMode('chat')};
+ const startChat=(target:ChatTarget)=>{setChatTarget(target);setMode('chat')};
+ if(mode==='chat'&&userId)return<ChatScreen userId={userId} initialTarget={chatTarget} unreadCount={unreadCount} onUnreadChange={setUnreadCount} onBack={()=>{setChatTarget(null);setMode('app')}} onHome={()=>{setChatTarget(null);setMode('app')}} onContacts={()=>{setChatTarget(null);setMode('app')}}/>;
+ return<MainApp onOpenDiscussions={openDiscussions} onStartChat={startChat} unreadCount={unreadCount}/>;
 }
-const s=StyleSheet.create({chatFab:{position:'absolute',right:18,bottom:91,width:52,height:52,borderRadius:26,backgroundColor:'#6b2cff',alignItems:'center',justifyContent:'center',shadowColor:'#000',shadowOpacity:.18,shadowRadius:8,shadowOffset:{width:0,height:3},elevation:5}});
