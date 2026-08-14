@@ -16,7 +16,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.romainmannino.onlive",
       "infoPlist": {
-        "NSContactsUsageDescription": "Onlive utilise vos contacts pour vous montrer les proches qui utilisent déjà l'application."
+        "NSContactsUsageDescription": "Onlive utilise vos contacts pour vous montrer les proches qui utilisent déjà l'application.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -25,7 +26,7 @@
         "foregroundImage": "./public/logo carre.png",
         "backgroundColor": "#FFFFFF"
       },
-      "permissions": ["READ_CONTACTS"]
+      "permissions": ["READ_CONTACTS", "POST_NOTIFICATIONS"]
     },
     "plugins": [
       [
@@ -39,7 +40,20 @@
         {
           "contactsPermission": "Autoriser Onlive à accéder à vos contacts pour retrouver vos proches déjà inscrits."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#D400B8",
+          "defaultChannel": "onlive"
+        }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e9adeb7b-85f5-4211-900e-29d1793d0d09"
+      }
+    },
+    "owner": "romainmannino"
   }
 }
