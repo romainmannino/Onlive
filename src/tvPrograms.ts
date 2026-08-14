@@ -1,3 +1,5 @@
+import { supabase } from './supabase';
+
 export type ProgramCategory = 'Divertissement' | 'Film' | 'Série' | 'Sport' | 'Foot';
 
 export type Program = {
@@ -19,24 +21,25 @@ export const FALLBACK_PROGRAMS: Program[] = [
   { id:'euro-1', title:'Masters 1000 de Cincinnati', channel:'Eurosport', category:'Sport', time:'19:00', image:'https://images.unsplash.com/photo-1595435742656-5272d0b3fa82?auto=format&fit=crop&w=900&q=80', isLive:true },
 ];
 
-const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-
-const parisDate = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', year:'numeric', month:'2-digit', day:'2-digit' }).format(new Date());
+export const parisDate = () => new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Europe/Paris', year:'numeric', month:'2-digit', day:'2-digit'
+}).format(new Date());
 
 export async function fetchTvPrograms(date = parisDate()): Promise<Program[]> {
-  if (!url || !anonKey) return [];
-  const endpoint = `${url}/rest/v1/tv_programs?date=eq.${encodeURIComponent(date)}&select=id,title,channel,category,start_time,image_url,is_live&order=start_time.asc`;
-  const response = await fetch(endpoint, { headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` } });
-  if (!response.ok) throw new Error(`tv_programs HTTP ${response.status}`);
-  const rows = await response.json();
-  return rows.map((row:any) => ({
+  const { data, error } = await supabase
+    .from('tv_programs')
+    .select('id,title,channel,category,start_time,image_url,is_live')
+    .eq('program_date', date)
+    .order('start_time', { ascending: true });
+
+  if (error) throw error;
+  return (data || []).map((row:any) => ({
     id: String(row.id),
     title: row.title,
     channel: row.channel,
     category: row.category as ProgramCategory,
     time: String(row.start_time).slice(0,5),
-    image: row.image_url,
+    image: row.image_url || '',
     isLive: Boolean(row.is_live),
   }));
 }
