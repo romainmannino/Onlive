@@ -7,6 +7,7 @@ type ChatTarget={userId:string;name:string;programId:string|null;programTitle:st
 
 export default function Root(){
  const[mode,setMode]=useState<'app'|'chat'>('app');
+ const[appSection,setAppSection]=useState<'home'|'contacts'>('home');
  const[userId,setUserId]=useState<string|null>(null);
  const[chatTarget,setChatTarget]=useState<ChatTarget|null>(null);
  const[unreadCount,setUnreadCount]=useState(0);
@@ -14,6 +15,8 @@ export default function Root(){
  useEffect(()=>{if(!userId){setUnreadCount(0);return}let alive=true;const refresh=async()=>{const{data}=await supabase.rpc('chat_unread_count');if(alive)setUnreadCount(Number(data)||0)};refresh();const t=setInterval(refresh,2000);return()=>{alive=false;clearInterval(t)}},[userId]);
  const openDiscussions=()=>{setChatTarget(null);setMode('chat')};
  const startChat=(target:ChatTarget)=>{setChatTarget(target);setMode('chat')};
- if(mode==='chat'&&userId)return<ChatScreen userId={userId} initialTarget={chatTarget} unreadCount={unreadCount} onUnreadChange={setUnreadCount} onBack={()=>{setChatTarget(null);setMode('app')}} onHome={()=>{setChatTarget(null);setMode('app')}} onContacts={()=>{setChatTarget(null);setMode('app')}}/>;
- return<MainApp onOpenDiscussions={openDiscussions} onStartChat={startChat} unreadCount={unreadCount}/>;
+ const goHome=()=>{setChatTarget(null);setAppSection('home');setMode('app')};
+ const goContacts=()=>{setChatTarget(null);setAppSection('contacts');setMode('app')};
+ if(mode==='chat'&&userId)return<ChatScreen userId={userId} initialTarget={chatTarget} unreadCount={unreadCount} onUnreadChange={setUnreadCount} onBack={goHome} onHome={goHome} onContacts={goContacts}/>;
+ return<MainApp initialScreen={appSection} onOpenDiscussions={openDiscussions} onStartChat={startChat} unreadCount={unreadCount}/>;
 }
