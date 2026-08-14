@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "Onlive",
+    "slug": "onlive",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0A0A"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.romainmannino.onlive",
+      "infoPlist": {
+        "NSContactsUsageDescription": "Onlive utilise vos contacts pour vous montrer les proches qui utilisent déjà l'application."
+      }
+    },
+    "android": {
+      "package": "com.romainmannino.onlive",
+      "permissions": ["READ_CONTACTS"]
+    },
+    "plugins": [
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Autoriser Onlive à accéder à vos contacts pour retrouver vos proches déjà inscrits."
+        }
+      ]
+    ]
+  }
+}
