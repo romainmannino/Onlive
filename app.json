@@ -6,7 +6,9 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "icon": "./public/logo carre.png",
     "splash": {
+      "image": "./public/logo horiz.png",
       "resizeMode": "contain",
       "backgroundColor": "#0A0A0A"
     },
@@ -19,6 +21,10 @@
     },
     "android": {
       "package": "com.romainmannino.onlive",
+      "adaptiveIcon": {
+        "foregroundImage": "./public/logo carre.png",
+        "backgroundColor": "#FFFFFF"
+      },
       "permissions": ["READ_CONTACTS"]
     },
     "plugins": [
