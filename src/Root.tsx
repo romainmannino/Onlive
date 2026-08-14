@@ -5,6 +5,7 @@ import{LinearGradient}from'expo-linear-gradient';
 import MainApp from'./MainApp';
 import ChatScreen from'./ChatScreen';
 import{supabase}from'./supabase';
+import{Notifications,registerPushNotifications,setAppBadge}from'./notifications';
 
 type ChatTarget={userId:string;name:string;programId:string|null;programTitle:string;channel:string};
 
@@ -13,14 +14,17 @@ export default function Root(){
  const[appSection,setAppSection]=useState<'home'|'contacts'>('home');
  const[userId,setUserId]=useState<string|null>(null);
  const[chatTarget,setChatTarget]=useState<ChatTarget|null>(null);
+ const[notificationRoomId,setNotificationRoomId]=useState<string|null>(null);
  const[unreadCount,setUnreadCount]=useState(0);
  useEffect(()=>{supabase.auth.getSession().then(({data})=>setUserId(data.session?.user.id||null));const{data:l}=supabase.auth.onAuthStateChange((_e,s)=>setUserId(s?.user.id||null));return()=>l.subscription.unsubscribe()},[]);
- useEffect(()=>{if(!userId){setUnreadCount(0);return}let alive=true;const refresh=async()=>{const{data}=await supabase.rpc('chat_unread_count');if(alive)setUnreadCount(Number(data)||0)};refresh();const t=setInterval(refresh,2000);return()=>{alive=false;clearInterval(t)}},[userId]);
- const openDiscussions=()=>{setChatTarget(null);setMode('chat')};
- const startChat=(target:ChatTarget)=>{setChatTarget(target);setMode('chat')};
- const goHome=()=>{setChatTarget(null);setAppSection('home');setMode('app')};
- const goContacts=()=>{setChatTarget(null);setAppSection('contacts');setMode('app')};
- if(mode==='chat'&&userId)return<ChatScreen userId={userId} initialTarget={chatTarget} unreadCount={unreadCount} onUnreadChange={setUnreadCount} onBack={goHome} onHome={goHome} onContacts={goContacts}/>;
+ useEffect(()=>{if(!userId)return;registerPushNotifications(userId)},[userId]);
+ useEffect(()=>{if(!userId){setUnreadCount(0);setAppBadge(0);return}let alive=true;const refresh=async()=>{const{data}=await supabase.rpc('chat_unread_count');const n=Number(data)||0;if(alive){setUnreadCount(n);setAppBadge(n)}};refresh();const t=setInterval(refresh,2000);return()=>{alive=false;clearInterval(t)}},[userId]);
+ useEffect(()=>{const sub=Notifications.addNotificationResponseReceivedListener(response=>{const d:any=response.notification.request.content.data||{};if((d.type==='chat_message'||d.type==='chat_invite')&&d.roomId){setChatTarget(null);setNotificationRoomId(String(d.roomId));setMode('chat')}else if(d.type==='watching'){setNotificationRoomId(null);setChatTarget(null);setAppSection('home');setMode('app')}});return()=>sub.remove()},[]);
+ const openDiscussions=()=>{setChatTarget(null);setNotificationRoomId(null);setMode('chat')};
+ const startChat=(target:ChatTarget)=>{setNotificationRoomId(null);setChatTarget(target);setMode('chat')};
+ const goHome=()=>{setChatTarget(null);setNotificationRoomId(null);setAppSection('home');setMode('app')};
+ const goContacts=()=>{setChatTarget(null);setNotificationRoomId(null);setAppSection('contacts');setMode('app')};
+ if(mode==='chat'&&userId)return<ChatScreen userId={userId} initialTarget={chatTarget} initialRoomId={notificationRoomId} unreadCount={unreadCount} onUnreadChange={setUnreadCount} onBack={goHome} onHome={goHome} onContacts={goContacts}/>;
  return<View style={s.root}><MainApp initialScreen={appSection} onOpenDiscussions={openDiscussions} onStartChat={startChat} unreadCount={unreadCount}/>{userId&&<View style={s.navCover}><View style={s.compactNav}><NavItem active={appSection==='home'} icon="home" label="Accueil" onPress={goHome}/><TouchableOpacity onPress={openDiscussions} style={s.navItem}><View style={s.inactive}><View><Ionicons name="chatbubbles-outline" size={21} color="#9728df"/>{unreadCount>0&&<View style={s.badge}><Text style={s.badgeText}>{unreadCount>99?'99+':unreadCount}</Text></View>}</View><Text style={[s.inactiveText,{color:'#9728df'}]}>Discussions</Text></View></TouchableOpacity><NavItem active={appSection==='contacts'} icon="people" label="Contacts" onPress={goContacts}/></View></View>}</View>;
 }
 function NavItem({active,icon,label,onPress}:{active:boolean;icon:'home'|'people';label:string;onPress:()=>void}){return<TouchableOpacity onPress={onPress} style={s.navItem}>{active?<LinearGradient colors={['#4932ff','#ed00b3']} style={s.active}><Ionicons name={icon} size={21} color="#fff"/><Text style={s.activeText}>{label}</Text></LinearGradient>:<View style={s.inactive}><Ionicons name={`${icon}-outline` as any} size={21} color={icon==='people'?'#d700b0':'#6b2cff'}/><Text style={[s.inactiveText,{color:icon==='people'?'#d700b0':'#6b2cff'}]}>{label}</Text></View>}</TouchableOpacity>}
