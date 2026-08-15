@@ -8,7 +8,6 @@ import{supabase}from'./supabase';
 import{Notifications,registerPushNotifications,setAppBadge}from'./notifications';
 
 type ChatTarget={userId:string;name:string;programId:string|null;programTitle:string;channel:string};
-const AUTH_CALLBACK='https://cixheqmufmvkolljbbqc.supabase.co/functions/v1/onlive-auth-callback';
 
 export default function Root(){
  const[mode,setMode]=useState<'app'|'chat'>('app');
@@ -75,10 +74,10 @@ export default function Root(){
   if(!email)return Alert.alert('Adresse e-mail','Entre l’adresse e-mail de ton compte Onlive.');
   setResetLoading(true);
   try{
-   const{error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo:`${AUTH_CALLBACK}?mode=recovery`});
+   const{error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo:'onlive://reset-password'});
    if(error)throw error;
    setForgotOpen(false);
-   Alert.alert('E-mail envoyé','Ouvre le mail Onlive puis touche le bouton pour choisir un nouveau mot de passe.');
+   Alert.alert('E-mail envoyé','Ouvre le mail puis touche le lien : Onlive s’ouvrira directement pour choisir ton nouveau mot de passe.');
   }catch(e:any){Alert.alert('Envoi impossible',e?.message||'Impossible d’envoyer le mail de réinitialisation.')}
   finally{setResetLoading(false)}
  };
