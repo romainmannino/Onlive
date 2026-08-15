@@ -26,24 +26,27 @@ Fonctionnalités :
 
 Onlive ne diffuse aucun contenu TV ou sportif : l’application crée un espace social autour de ce que vous regardez déjà.
 
-## URLs à fournir
-- Privacy Policy : https://onlive-app.com/privacy.html
-- Suppression de compte externe : https://onlive-app.com/delete-account.html
-- Support / site : https://onlive-app.com/support.html
+## URLs finales
+- Privacy Policy : https://onlive-app.com/privacy
+- Suppression de compte externe : https://onlive-app.com/delete-account
+- Support / site : https://onlive-app.com/support
 
-## Data Safety — brouillon à confirmer avec le code final
-### Données personnelles collectées
+## Data Safety — état préparé
+### Données traitées par l’app
 - Nom/pseudonyme
 - Adresse e-mail
-- Numéro de téléphone si renseigné / utilisé pour mise en relation
-- Photo de profil
+- Numéro de téléphone requis à la création du compte
+- Photo de profil facultative
 - Identifiant utilisateur
 - Token push
 - Statut Onlive/Offlive
 - Programme sélectionné/regardé
 - Messages de discussion
 - Horodatages nécessaires au fonctionnement
-- Contacts du téléphone utilisés pour retrouver des proches et invitations
+- Numéros issus des contacts du téléphone utilisés pour retrouver les proches déjà inscrits
+
+### Contacts du téléphone
+Avec autorisation, l’app lit les numéros du carnet d’adresses. Ils sont normalisés puis transmis au service afin de rechercher les comptes Onlive correspondants. Les noms enregistrés localement dans le carnet ne sont pas envoyés par ce mécanisme.
 
 ### Finalités principales
 - Fonctionnement de l’application
@@ -54,75 +57,75 @@ Onlive ne diffuse aucun contenu TV ou sportif : l’application crée un espace 
 - Support et sécurité
 
 ### Publicité
-Pour la V1 : aucune régie publicitaire tierce et aucun SDK publicitaire prévu.
+V1 actuelle : aucune régie publicitaire tierce et aucun SDK publicitaire intégré. Déclaration Ads prévue : Non, tant que le build soumis reste identique sur ce point.
 
-### Partage / prestataires
-Les prestataires techniques actuels comprennent Supabase, Expo, Firebase Cloud Messaging, Apple Push Notification Service et Resend selon les plateformes/fonctions concernées. La qualification exacte « collecté » / « partagé » doit être finalisée dans Data Safety en fonction des flux réellement transmis à chaque service.
+### Prestataires techniques
+Supabase, Expo, Firebase Cloud Messaging, Apple Push Notification Service et Resend sont utilisés selon les plateformes/fonctions. La déclaration Data Safety doit rester cohérente avec le build final et les flux de ces prestataires.
 
 ## Suppression de compte Google Play
-Onlive permet la création de compte : Google Play exige donc :
-1. une option de suppression dans l’app ;
-2. une ressource web externe permettant d’initier la suppression ;
-3. la suppression des données associées au compte, sauf conservation légitime clairement annoncée.
+Onlive permet la création de compte. Le parcours est disponible :
+1. dans l’app : barre du bas → photo de profil → Compte → Supprimer mon compte ;
+2. sur le web : https://onlive-app.com/delete-account
 
-Parcours in-app actuel : photo de profil → Compte → Supprimer mon compte.
-URL externe prévue : https://onlive-app.com/delete-account.html
+La page web permet également d’initier la demande par e-mail si l’utilisateur n’a plus accès à l’application.
 
-## App Access / accès reviewer
-Créer un compte démo stable et transmettre les identifiants dans « App access » si le reviewer ne peut pas accéder aux fonctions sans connexion.
+## App Access / reviewer
+Créer un compte démo stable et transmettre les identifiants dans App access si l’accès complet nécessite une connexion.
 
-Préparer les instructions :
+Instructions reviewer :
 - se connecter ;
 - sélectionner un programme ;
 - passer Onlive ;
 - consulter les proches Onlive ;
 - discuter uniquement lorsqu’un proche est sur le même programme.
 
-## Permissions Android actuellement déclarées
+## Permissions Android
 - READ_CONTACTS
 - POST_NOTIFICATIONS
 - CAMERA
+- accès photo selon le mécanisme fourni par expo-image-picker et la version Android
 
-L’accès photo est géré par expo-image-picker selon le système.
+Avant production, contrôler le manifeste du bundle final et vérifier que chaque permission réellement présente est nécessaire et déclarée de façon cohérente dans Play Console.
 
-### Point critique Contacts
-Onlive utilise actuellement READ_CONTACTS. La nouvelle politique Google sur l’accès large aux contacts entre en vigueur le 28 octobre 2026 pour les apps ciblant Android 17 / API 37+ : il faudra soit utiliser Android Contact Picker si cela suffit, soit justifier dans Play Console pourquoi l’accès large aux contacts est indispensable à la fonctionnalité principale.
+## Captures Google Play finales
+Google Play exige au minimum deux captures pour publier la fiche ; pour une présentation de qualité et l’éligibilité à davantage de surfaces de recommandation, préparer au moins quatre visuels de 1080 px minimum. Série prévue : 6 captures portrait en 9:16.
 
-Pour Onlive, documenter précisément pourquoi le matching automatique de l’ensemble du carnet d’adresses serait nécessaire si READ_CONTACTS est conservé. À réévaluer avant toute montée vers target API 37+.
+1. **Accueil OFFLIVE** — « La télé devient sociale ».
+2. **Accueil ONLIVE** — programme sportif marquant — « Dis ce que tu regardes ».
+3. **Tes proches Onlive** — « Vois qui regarde avec toi ».
+4. **Discussions** — liste du programme sélectionné.
+5. **Chat** — « Réagissez ensemble ».
+6. **Contacts** — « Retrouve tes proches sur Onlive ».
 
-## Captures Google Play
-Prévoir au moins 4 visuels portrait de qualité, idéalement 6 pour garder la même narration qu’iOS :
-1. OFFLIVE — La télé devient sociale
-2. ONLIVE — match marquant type PSG–OM
-3. Proches regardant le même programme
-4. Chat autour du programme
-5. Notification avec proche + programme + aperçu
-6. Contacts / retrouver ses proches
-
-Ne pas inventer de composants inexistants dans l’app. N’utiliser aucune donnée personnelle réelle.
+Règles : reproduire l’UI réelle actuelle, ne montrer aucune donnée personnelle réelle et ne présenter aucune fonction absente du build.
 
 ## Déclarations Play Console à préparer
 - Data Safety
 - App access
-- Ads : « Non » pour la V1 sans publicité
+- Ads : Non pour la V1 actuelle
 - Content rating / questionnaire IARC
 - Target audience and content
 - Account deletion URL
 - Privacy Policy URL
-- Permissions declarations si demandées
+- Permissions declarations si Play Console les demande pour le manifeste final
 
 ## Checklist avant production
-- [ ] Domaine onlive-app.com accessible en HTTPS
-- [ ] Privacy Policy publique
-- [ ] Delete Account publique
-- [ ] Suppression in-app testée réellement
+- [x] Domaine onlive-app.com accessible en HTTPS
+- [x] Privacy Policy publique
+- [x] Delete Account publique
+- [x] Support public
+- [ ] Vérifier support@onlive-app.com
+- [ ] Vérifier privacy@onlive-app.com
+- [ ] Suppression in-app testée une dernière fois
 - [ ] Data Safety complété
 - [ ] App access complété avec compte démo
-- [ ] Déclaration Ads = Non si aucune pub n’est intégrée
+- [ ] Ads = Non confirmé
 - [ ] Questionnaire de classification rempli
+- [ ] Target audience rempli
 - [ ] Permissions contrôlées sur le manifeste final
+- [ ] Captures finales importées
 - [ ] Build AAB production généré
 - [ ] Internal testing Google Play validé
-- [ ] Notifications Android app fermée testées sur le build de production
-- [ ] Confirmation mail / récupération de mot de passe testées
+- [ ] Notifications Android app fermée testées sur build production
+- [ ] Confirmation e-mail / récupération de mot de passe testées
 - [ ] Aucun bouton/debug/test visible dans la version finale
