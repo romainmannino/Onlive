@@ -18,6 +18,7 @@
       "infoPlist": {
         "NSContactsUsageDescription": "Onlive utilise vos contacts pour vous montrer les proches qui utilisent déjà l'application.",
         "NSPhotoLibraryUsageDescription": "Onlive utilise votre photothèque uniquement pour choisir votre photo de profil.",
+        "NSCameraUsageDescription": "Onlive utilise la caméra uniquement lorsque vous choisissez de prendre votre photo de profil.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -27,7 +28,7 @@
         "foregroundImage": "./public/logo carre.png",
         "backgroundColor": "#FFFFFF"
       },
-      "permissions": ["READ_CONTACTS", "POST_NOTIFICATIONS"]
+      "permissions": ["READ_CONTACTS", "POST_NOTIFICATIONS", "CAMERA"]
     },
     "plugins": [
       [
@@ -46,7 +47,7 @@
         "expo-image-picker",
         {
           "photosPermission": "Autoriser Onlive à accéder à vos photos pour choisir votre photo de profil.",
-          "cameraPermission": false
+          "cameraPermission": "Autoriser Onlive à utiliser la caméra pour prendre votre photo de profil."
         }
       ],
       [
