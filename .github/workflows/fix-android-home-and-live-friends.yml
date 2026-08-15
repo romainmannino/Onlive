@@ -1,0 +1,58 @@
+name: Fix Android home and Onlive friend rules
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-android-home-and-live-friends.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'Apply Android navigation and Onlive friend rules'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch navigation and live friends
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('src/Root.tsx')
+          text = root.read_text()
+          replacements = {
+            "const openDiscussions=()=>{setChatTarget(null);setNotificationRoomId(null);setMode('chat')};": "const openDiscussions=()=>{setProfileOpenSignal(0);setChatTarget(null);setNotificationRoomId(null);setMode('chat')};",
+            "setNotificationRoomId(null);setChatTarget(target);setMode('chat')};": "setProfileOpenSignal(0);setNotificationRoomId(null);setChatTarget(target);setMode('chat')};",
+            "const goHome=()=>{setChatTarget(null);setNotificationRoomId(null);setAppSection('home');setMode('app')};const goContacts=()=>{setChatTarget(null);setNotificationRoomId(null);setAppSection('contacts');setMode('app')};": "const goHome=()=>{setProfileOpenSignal(0);setChatTarget(null);setNotificationRoomId(null);setAppSection('home');setMode('app')};const goContacts=()=>{setProfileOpenSignal(0);setChatTarget(null);setNotificationRoomId(null);setAppSection('contacts');setMode('app')};",
+          }
+          for old,new in replacements.items():
+            if old not in text:
+              raise SystemExit(f'Root snippet not found: {old[:80]}')
+            text = text.replace(old,new,1)
+          root.write_text(text)
+
+          main = Path('src/MainApp.tsx')
+          text = main.read_text()
+          marker = "\n\n  async function loadPrograms()"
+          if marker not in text:
+            raise SystemExit('MainApp insertion marker not found')
+          sorted_code = "\n  const sortedLiveFriends=useMemo(()=>[...liveFriends].sort((a,b)=>{const aSame=Boolean(selectedProgram&&a.programId===selectedProgram.id),bSame=Boolean(selectedProgram&&b.programId===selectedProgram.id);if(aSame!==bSame)return aSame?-1:1;return a.name.localeCompare(b.name,'fr')}),[liveFriends,selectedProgram]);"
+          if 'const sortedLiveFriends=useMemo' not in text:
+            text = text.replace(marker, sorted_code + marker, 1)
+
+          pattern = re.compile(r"\{liveFriends\.length\?<View style=\{s\.friendsCard\}>\{liveFriends\.map\(\(f,i\)=><TouchableOpacity.*?</TouchableOpacity>\)\}</View>:<View style=\{s\.emptyFriends\}>", re.S)
+          replacement = "{sortedLiveFriends.length?<View style={s.friendsCard}>{sortedLiveFriends.map((f,i)=>{const canChat=Boolean(selectedProgram&&f.programId===selectedProgram.id);return<TouchableOpacity key={f.userId} disabled={!canChat} activeOpacity={canChat?.7:1} onPress={canChat?()=>onStartChat?.({userId:f.userId,name:f.name,programId:f.programId,programTitle:f.program,channel:f.channel}):undefined} style={[s.friendRow,i<sortedLiveFriends.length-1&&s.friendDivider]}>{f.image?<Image source={{uri:f.image}} style={s.friendAvatar}/>:<View style={s.friendAvatarFallback}><Text style={{fontWeight:'800'}}>{initials(f.name)}</Text></View>}<View style={{flex:1}}><View style={s.friendNameRow}><Text style={s.friendName}>{f.name}</Text><Text style={s.watches}>regarde</Text></View><Text style={s.friendProgram} numberOfLines={1} ellipsizeMode=\"tail\">{f.program}</Text><Text style={s.friendMeta}>{f.channel} · {f.since}</Text></View>{canChat&&<Ionicons name=\"chatbubble-ellipses-outline\" size={20} color=\"#6b2cff\"/>}<View style={s.onlineDot}/></TouchableOpacity>})}</View>:<View style={s.emptyFriends}>"
+          text2,n = pattern.subn(replacement,text,count=1)
+          if n != 1:
+            raise SystemExit(f'Expected one liveFriends block, replaced {n}')
+          main.write_text(text2)
+          PY
+      - name: Commit fixes
+        run: |
+          git config user.name "onlive-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/Root.tsx src/MainApp.tsx
+          git commit -m "Fix Android home modal and live friend chat rules"
+          git push
