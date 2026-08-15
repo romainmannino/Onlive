@@ -1,0 +1,69 @@
+name: Polish live friends search
+
+on:
+  push:
+    paths:
+      - '.github/workflows/polish-live-friends-search.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'Apply compact live friends UI'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch compact live friends UI
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          p=Path('src/MainApp.tsx')
+          t=p.read_text()
+
+          # add search state
+          old="const[notifyOpen,setNotifyOpen]=useState(false);const[notifySelected,setNotifySelected]=useState<string[]>([]);"
+          new=old+"const[liveSearchOpen,setLiveSearchOpen]=useState(false);const[liveSearch,setLiveSearch]=useState('');"
+          if old not in t: raise SystemExit('search state anchor not found')
+          t=t.replace(old,new,1)
+
+          # filtered/sorted live friends
+          old="const sortedLiveFriends=useMemo(()=>[...liveFriends].sort((a,b)=>{const aSame=Boolean(selectedProgram&&a.programId===selectedProgram.id),bSame=Boolean(selectedProgram&&b.programId===selectedProgram.id);if(aSame!==bSame)return aSame?-1:1;return a.name.localeCompare(b.name,'fr')}),[liveFriends,selectedProgram]);"
+          new="const sortedLiveFriends=useMemo(()=>{const q=liveSearch.trim().toLowerCase();return[...liveFriends].filter(f=>!q||f.name.toLowerCase().includes(q)).sort((a,b)=>{const aSame=Boolean(selectedProgram&&a.programId===selectedProgram.id),bSame=Boolean(selectedProgram&&b.programId===selectedProgram.id);if(aSame!==bSame)return aSame?-1:1;return a.name.localeCompare(b.name,'fr')})},[liveFriends,selectedProgram,liveSearch]);"
+          if old not in t: raise SystemExit('sortedLiveFriends anchor not found')
+          t=t.replace(old,new,1)
+
+          # section title -> row with search icon + optional search bar
+          old='<Text style={s.sectionTitle}>Tes proches Onlive</Text>'
+          new='<View style={s.liveSectionHead}><Text style={s.sectionTitle}>Tes proches Onlive</Text><TouchableOpacity accessibilityLabel="Rechercher un proche" onPress={()=>{setLiveSearchOpen(v=>!v);if(liveSearchOpen)setLiveSearch(\'\')}} style={s.liveSearchButton}><Ionicons name={liveSearchOpen?"close":"search"} size={19} color="#6b2cff"/></TouchableOpacity></View>{liveSearchOpen&&<View style={s.liveSearchBox}><Ionicons name="search" size={18} color="#999"/><TextInput autoFocus value={liveSearch} onChangeText={setLiveSearch} placeholder="Rechercher un proche" placeholderTextColor="#999" style={s.liveSearchInput}/></View>}'
+          if old not in t: raise SystemExit('section title anchor not found')
+          t=t.replace(old,new,1)
+
+          # replace live friend row body with 2 lines
+          pat=re.compile(r"\{sortedLiveFriends\.length\?<View style=\{s\.friendsCard\}>\{sortedLiveFriends\.map\(\(f,i\)=>\{const canChat=Boolean\(selectedProgram&&f\.programId===selectedProgram\.id\);return<TouchableOpacity.*?</TouchableOpacity>\}\)\}</View>:<View style=\{s\.emptyFriends\}>",re.S)
+          repl="{sortedLiveFriends.length?<View style={s.friendsCard}>{sortedLiveFriends.map((f,i)=>{const canChat=Boolean(selectedProgram&&f.programId===selectedProgram.id);return<TouchableOpacity key={f.userId} disabled={!canChat} activeOpacity={canChat?.7:1} onPress={canChat?()=>onStartChat?.({userId:f.userId,name:f.name,programId:f.programId,programTitle:f.program,channel:f.channel}):undefined} style={[s.friendRow,i<sortedLiveFriends.length-1&&s.friendDivider]}>{f.image?<Image source={{uri:f.image}} style={s.friendAvatar}/>:<View style={s.friendAvatarFallback}><Text style={{fontWeight:'700'}}>{initials(f.name)}</Text></View>}<View style={s.friendTextWrap}><Text numberOfLines={1} ellipsizeMode=\"tail\" style={s.friendSummary}><Text style={s.friendNameCompact}>{f.name}</Text><Text style={s.friendSummaryMeta}> regarde {f.channel} · {f.since}</Text></Text><Text style={s.friendProgramCompact} numberOfLines={1} ellipsizeMode=\"tail\">« {f.program} »</Text></View>{canChat&&<Ionicons name=\"chatbubble-ellipses-outline\" size={19} color=\"#6b2cff\"/>}<View style={s.onlineDot}/></TouchableOpacity>})}</View>:<View style={s.emptyFriends}>"
+          t,n=pat.subn(repl,t,count=1)
+          if n!=1: raise SystemExit(f'live friends block replaced {n}')
+
+          # add styles
+          anchor="sectionTitle:{fontSize:20,fontWeight:'800',marginVertical:12},"
+          addition="liveSectionHead:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},liveSearchButton:{width:34,height:34,borderRadius:17,backgroundColor:'#fff',alignItems:'center',justifyContent:'center'},liveSearchBox:{height:42,borderRadius:14,backgroundColor:'#fff',paddingHorizontal:12,flexDirection:'row',alignItems:'center',gap:8,marginBottom:10},liveSearchInput:{flex:1,fontSize:14,color:'#222'},"
+          if anchor not in t: raise SystemExit('style anchor 1 not found')
+          t=t.replace(anchor,anchor+addition,1)
+
+          anchor2="friendName:{fontWeight:'800',fontSize:16},watches:{fontSize:11,color:'#8d8d95'},friendProgram:{fontWeight:'700',color:'#4c2cff'},friendMeta:{color:'#888',fontSize:12},"
+          addition2="friendTextWrap:{flex:1,minWidth:0},friendSummary:{fontSize:13,color:'#777'},friendNameCompact:{fontSize:14,fontWeight:'600',color:'#111'},friendSummaryMeta:{fontSize:12,color:'#888'},friendProgramCompact:{fontSize:13,fontWeight:'500',color:'#4c2cff',marginTop:2},"
+          if anchor2 not in t: raise SystemExit('style anchor 2 not found')
+          t=t.replace(anchor2,anchor2+addition2,1)
+
+          p.write_text(t)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "onlive-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/MainApp.tsx
+          git commit -m "Compact live friends rows and add search"
+          git push
