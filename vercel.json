@@ -3,6 +3,13 @@
   "framework": null,
   "buildCommand": null,
   "outputDirectory": "public",
-  "cleanUrls": false,
-  "trailingSlash": false
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "redirects": [
+    { "source": "/privacy.html", "destination": "/privacy", "permanent": true },
+    { "source": "/support.html", "destination": "/support", "permanent": true },
+    { "source": "/delete-account.html", "destination": "/delete-account", "permanent": true },
+    { "source": "/confidentialite", "destination": "/privacy", "permanent": true },
+    { "source": "/suppression-compte", "destination": "/delete-account", "permanent": true }
+  ]
 }
