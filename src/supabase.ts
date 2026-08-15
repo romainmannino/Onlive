@@ -2,12 +2,18 @@ import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 
-const AUTH_CALLBACK='https://cixheqmufmvkolljbbqc.supabase.co/functions/v1/onlive-auth-callback';
-
 const client=createClient(
   'https://cixheqmufmvkolljbbqc.supabase.co',
   'sb_publishable_Ze5BdjJw9m213sjyTtbuqw_IxnXzz6J',
-  { auth: { storage: AsyncStorage, autoRefreshToken: true, persistSession: true, detectSessionInUrl: false } }
+  {
+    auth:{
+      storage:AsyncStorage,
+      autoRefreshToken:true,
+      persistSession:true,
+      detectSessionInUrl:false,
+      flowType:'pkce',
+    },
+  }
 );
 
 const originalSignUp=client.auth.signUp.bind(client.auth);
@@ -17,7 +23,7 @@ client.auth.signUp=((credentials:any)=>{
       ...credentials,
       options:{
         ...(credentials.options||{}),
-        emailRedirectTo:credentials.options?.emailRedirectTo||`${AUTH_CALLBACK}?mode=confirmation`,
+        emailRedirectTo:credentials.options?.emailRedirectTo||'onlive://email-confirmed',
       },
     });
   }
