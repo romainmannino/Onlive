@@ -8,6 +8,7 @@ import{supabase}from'./supabase';
 import{Notifications,registerPushNotifications,setAppBadge}from'./notifications';
 
 type ChatTarget={userId:string;name:string;programId:string|null;programTitle:string;channel:string};
+const AUTH_CALLBACK='https://cixheqmufmvkolljbbqc.supabase.co/functions/v1/onlive-auth-callback';
 
 export default function Root(){
  const[mode,setMode]=useState<'app'|'chat'>('app');
@@ -34,19 +35,31 @@ export default function Root(){
 
  useEffect(()=>{
   const handleUrl=async(url:string|null)=>{
-   if(!url||!url.startsWith('onlive://reset-password'))return;
+   if(!url)return;
+   const isRecovery=url.startsWith('onlive://reset-password');
+   const isConfirmation=url.startsWith('onlive://email-confirmed');
+   if(!isRecovery&&!isConfirmation)return;
    try{
-    const query=url.split('?')[1]?.split('#')[0]||'';
-    const hash=url.split('#')[1]||'';
-    const params=new URLSearchParams(query||hash);
-    const code=params.get('code');
-    const accessToken=params.get('access_token');
-    const refreshToken=params.get('refresh_token');
+    const query=url.includes('?')?url.split('?')[1].split('#')[0]:'';
+    const hash=url.includes('#')?url.split('#')[1]:'';
+    const q=new URLSearchParams(query);
+    const h=new URLSearchParams(hash);
+    const get=(key:string)=>q.get(key)||h.get(key);
+    const errorDescription=get('error_description')||get('error');
+    if(errorDescription)throw new Error(decodeURIComponent(errorDescription));
+    const code=get('code');
+    const accessToken=get('access_token');
+    const refreshToken=get('refresh_token');
     if(code){const{error}=await supabase.auth.exchangeCodeForSession(code);if(error)throw error}
     else if(accessToken&&refreshToken){const{error}=await supabase.auth.setSession({access_token:accessToken,refresh_token:refreshToken});if(error)throw error}
     setForgotOpen(false);
-    setResetOpen(true);
-   }catch(e:any){Alert.alert('Lien invalide',e?.message||'Le lien de réinitialisation est invalide ou a expiré.')}
+    setNotificationRoomId(null);
+    setChatTarget(null);
+    setAppSection('home');
+    setMode('app');
+    if(isRecovery)setResetOpen(true);
+    else Alert.alert('Adresse confirmée','Ton adresse e-mail est confirmée. Bienvenue sur Onlive !');
+   }catch(e:any){Alert.alert('Lien invalide',e?.message||'Le lien Onlive est invalide ou a expiré.')}
   };
   Linking.getInitialURL().then(handleUrl);
   const sub=Linking.addEventListener('url',({url})=>handleUrl(url));
@@ -62,10 +75,10 @@ export default function Root(){
   if(!email)return Alert.alert('Adresse e-mail','Entre l’adresse e-mail de ton compte Onlive.');
   setResetLoading(true);
   try{
-   const{error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo:'onlive://reset-password'});
+   const{error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo:`${AUTH_CALLBACK}?mode=recovery`});
    if(error)throw error;
    setForgotOpen(false);
-   Alert.alert('E-mail envoyé','Ouvre le mail Onlive sur ce téléphone puis touche le lien pour choisir un nouveau mot de passe.');
+   Alert.alert('E-mail envoyé','Ouvre le mail Onlive puis touche le bouton pour choisir un nouveau mot de passe.');
   }catch(e:any){Alert.alert('Envoi impossible',e?.message||'Impossible d’envoyer le mail de réinitialisation.')}
   finally{setResetLoading(false)}
  };
@@ -78,7 +91,7 @@ export default function Root(){
    const{error}=await supabase.auth.updateUser({password:newPassword});
    if(error)throw error;
    setResetOpen(false);setNewPassword('');setConfirmPassword('');
-   Alert.alert('Mot de passe modifié','Ton nouveau mot de passe est enregistré. Tu peux maintenant utiliser Onlive normalement.');
+   Alert.alert('Mot de passe modifié','Ton nouveau mot de passe est enregistré.');
   }catch(e:any){Alert.alert('Modification impossible',e?.message||'Impossible de modifier le mot de passe.')}
   finally{setResetLoading(false)}
  };
@@ -93,7 +106,7 @@ export default function Root(){
   <MainApp initialScreen={appSection} onOpenDiscussions={openDiscussions} onStartChat={startChat} unreadCount={unreadCount}/>
   {!userId&&<TouchableOpacity style={s.forgotButton} onPress={()=>setForgotOpen(true)}><Text style={s.forgotText}>Mot de passe oublié ?</Text></TouchableOpacity>}
   {userId&&<View style={s.navCover}><View style={s.compactNav}><NavItem active={appSection==='home'} icon="home" label="Accueil" onPress={goHome}/><TouchableOpacity onPress={openDiscussions} style={s.navItem}><View style={s.inactive}><View><Ionicons name="chatbubbles-outline" size={21} color="#9728df"/>{unreadCount>0&&<View style={s.badge}><Text style={s.badgeText}>{unreadCount>99?'99+':unreadCount}</Text></View>}</View><Text style={[s.inactiveText,{color:'#9728df'}]}>Discussions</Text></View></TouchableOpacity><NavItem active={appSection==='contacts'} icon="people" label="Contacts" onPress={goContacts}/></View></View>}
-  <Modal visible={forgotOpen} transparent animationType="fade" onRequestClose={()=>setForgotOpen(false)}><View style={s.modalBackdrop}><View style={s.modalCard}><View style={s.modalHead}><Text style={s.modalTitle}>Mot de passe oublié</Text><TouchableOpacity onPress={()=>setForgotOpen(false)}><Ionicons name="close" size={24}/></TouchableOpacity></View><Text style={s.modalText}>Entre ton e-mail. Onlive t’enverra un lien qui rouvrira directement l’application.</Text><TextInput value={resetEmail} onChangeText={setResetEmail} autoCapitalize="none" keyboardType="email-address" placeholder="Adresse e-mail" style={s.resetInput}/><TouchableOpacity disabled={resetLoading} onPress={sendResetEmail}><LinearGradient colors={['#4932ff','#ed00b3']} style={s.resetButton}><Text style={s.resetButtonText}>{resetLoading?'Envoi…':'Envoyer le lien'}</Text></LinearGradient></TouchableOpacity></View></View></Modal>
+  <Modal visible={forgotOpen} transparent animationType="fade" onRequestClose={()=>setForgotOpen(false)}><View style={s.modalBackdrop}><View style={s.modalCard}><View style={s.modalHead}><Text style={s.modalTitle}>Mot de passe oublié</Text><TouchableOpacity onPress={()=>setForgotOpen(false)}><Ionicons name="close" size={24}/></TouchableOpacity></View><Text style={s.modalText}>Entre ton e-mail. Onlive t’enverra un lien sécurisé pour choisir un nouveau mot de passe.</Text><TextInput value={resetEmail} onChangeText={setResetEmail} autoCapitalize="none" keyboardType="email-address" placeholder="Adresse e-mail" style={s.resetInput}/><TouchableOpacity disabled={resetLoading} onPress={sendResetEmail}><LinearGradient colors={['#4932ff','#ed00b3']} style={s.resetButton}><Text style={s.resetButtonText}>{resetLoading?'Envoi…':'Envoyer le lien'}</Text></LinearGradient></TouchableOpacity></View></View></Modal>
   <Modal visible={resetOpen} transparent animationType="fade" onRequestClose={()=>setResetOpen(false)}><View style={s.modalBackdrop}><View style={s.modalCard}><Text style={s.modalTitle}>Nouveau mot de passe</Text><Text style={s.modalText}>Choisis ton nouveau mot de passe Onlive.</Text><TextInput value={newPassword} onChangeText={setNewPassword} secureTextEntry placeholder="Nouveau mot de passe" style={s.resetInput}/><TextInput value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry placeholder="Confirmer le mot de passe" style={s.resetInput}/><TouchableOpacity disabled={resetLoading} onPress={saveNewPassword}><LinearGradient colors={['#4932ff','#ed00b3']} style={s.resetButton}><Text style={s.resetButtonText}>{resetLoading?'Enregistrement…':'Enregistrer'}</Text></LinearGradient></TouchableOpacity></View></View></Modal>
  </View>;
 }
