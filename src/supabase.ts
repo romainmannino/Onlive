@@ -16,6 +16,8 @@ const client=createClient(
   }
 );
 
+const CONFIRM_CALLBACK='https://cixheqmufmvkolljbbqc.supabase.co/functions/v1/onlive-auth-callback?mode=confirmation';
+
 const originalSignUp=client.auth.signUp.bind(client.auth);
 client.auth.signUp=((credentials:any)=>{
   if(credentials?.email){
@@ -23,7 +25,7 @@ client.auth.signUp=((credentials:any)=>{
       ...credentials,
       options:{
         ...(credentials.options||{}),
-        emailRedirectTo:credentials.options?.emailRedirectTo||'onlive://email-confirmed',
+        emailRedirectTo:credentials.options?.emailRedirectTo||CONFIRM_CALLBACK,
       },
     });
   }
