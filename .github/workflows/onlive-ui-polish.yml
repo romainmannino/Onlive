@@ -1,0 +1,120 @@
+name: Onlive UI polish
+
+on:
+  push:
+    paths:
+      - '.github/workflows/onlive-ui-polish.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Refine bottom nav labels and notify CTA
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          def set_weight_in_style(src,key,weight='400'):
+              pat=rf"({re.escape(key)}:\{{)(.*?)(\}})"
+              m=re.search(pat,src)
+              if not m:
+                  return src
+              body=m.group(2)
+              if 'fontWeight:' in body:
+                  body=re.sub(r"fontWeight:'[^']+'",f"fontWeight:'{weight}'",body,1)
+              else:
+                  body += f",fontWeight:'{weight}'"
+              return src[:m.start()] + m.group(1)+body+m.group(3) + src[m.end():]
+
+          # Bottom navigation typography
+          for fn in ['src/Root.tsx','src/ChatScreen.tsx']:
+              p=Path(fn)
+              s=p.read_text()
+              for key in ['inactiveText','activeText','navText','navActive']:
+                  s=set_weight_in_style(s,key,'400')
+              p.write_text(s)
+
+          # Smaller, calmer "notify friends" CTA
+          p=Path('src/MainApp.tsx')
+          s=p.read_text()
+          old_phrase='Notifier vos proches que vous regardez'
+          if old_phrase in s:
+              s=s.replace(old_phrase,'Prévenir mes proches',1)
+
+          idx=s.find('Prévenir mes proches')
+          if idx!=-1:
+              # Identify nearest Text style and LinearGradient style used by this CTA
+              before=s[max(0,idx-900):idx]
+              style_names=re.findall(r"style=\{s\.(\w+)\}",before)
+              text_style=style_names[-1] if style_names else None
+              container_style=style_names[-2] if len(style_names)>1 else None
+
+              # Calm the gradient and icon color in the nearest gradient opening tag
+              grad_start=before.rfind('<LinearGradient')
+              if grad_start!=-1:
+                  absolute=max(0,idx-900)+grad_start
+                  open_end=s.find('>',absolute)
+                  if open_end!=-1:
+                      tag=s[absolute:open_end+1]
+                      tag=re.sub(r"colors=\{\[[^\]]+\]\}","colors={['#eee9ff','#ffe8f8']}",tag,1)
+                      s=s[:absolute]+tag+s[open_end+1:]
+                      idx=s.find('Prévenir mes proches')
+
+              # Nearest bell icon before CTA text -> purple
+              before=s[max(0,idx-500):idx]
+              bell=before.rfind('Ionicons')
+              if bell!=-1:
+                  absolute=max(0,idx-500)+bell
+                  icon_end=s.find('/>',absolute)
+                  if icon_end!=-1:
+                      tag=s[absolute:icon_end+2]
+                      tag=re.sub(r"color=\"[^\"]+\"",'color="#6b2cff"',tag,1)
+                      s=s[:absolute]+tag+s[icon_end+2:]
+
+              def refine_style(src,key,updates):
+                  if not key:
+                      return src
+                  pat=rf"({re.escape(key)}:\{{)(.*?)(\}})"
+                  m=re.search(pat,src)
+                  if not m:
+                      return src
+                  body=m.group(2)
+                  for prop,val in updates.items():
+                      rx=rf"{re.escape(prop)}:[^,}}]+"
+                      repl=f"{prop}:{val}"
+                      if re.search(rx,body):
+                          body=re.sub(rx,repl,body,1)
+                      else:
+                          body += ','+repl
+                  return src[:m.start()]+m.group(1)+body+m.group(3)+src[m.end():]
+
+              s=refine_style(s,container_style,{
+                  'paddingVertical':'9',
+                  'paddingHorizontal':'16',
+                  'borderRadius':'20',
+                  'minHeight':'40',
+                  'width':"'auto'",
+                  'alignSelf':"'flex-start'"
+              })
+              s=refine_style(s,text_style,{
+                  'fontSize':'14',
+                  'fontWeight':"'600'",
+                  'color':"'#6b2cff'",
+                  'textAlign':"'left'"
+              })
+          p.write_text(s)
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name "onlive-bot"
+          git config user.email "noreply@onlive-app.com"
+          git add src/Root.tsx src/ChatScreen.tsx src/MainApp.tsx
+          git commit -m "Polish bottom nav and notify CTA"
+          git push origin HEAD:main
