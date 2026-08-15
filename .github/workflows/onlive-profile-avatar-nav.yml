@@ -1,0 +1,65 @@
+name: Onlive profile avatar nav
+
+on:
+  push:
+    paths:
+      - '.github/workflows/onlive-profile-avatar-nav.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Show avatar or initials in account nav
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('src/Root.tsx')
+          s=p.read_text()
+          s=s.replace("import{Alert,Linking,Modal,StyleSheet,Text,TextInput,TouchableOpacity,View}from'react-native';","import{Alert,Image,Linking,Modal,StyleSheet,Text,TextInput,TouchableOpacity,View}from'react-native';",1)
+          state=" const[profileOpenSignal,setProfileOpenSignal]=useState(0);\n"
+          assert state in s
+          s=s.replace(state,state+" const[navAvatar,setNavAvatar]=useState<string|null>(null);\n const[navInitials,setNavInitials]=useState('MO');\n",1)
+          anchor=" useEffect(()=>{if(!userId)return;registerPushNotifications(userId)},[userId]);\n"
+          assert anchor in s
+          profile_effect=" useEffect(()=>{if(!userId){setNavAvatar(null);setNavInitials('MO');return;}supabase.from('profiles').select('display_name,avatar_url').eq('id',userId).maybeSingle().then(({data})=>{setNavAvatar(data?.avatar_url||null);const v=(data?.display_name||'Moi').trim().split(/\\s+/).filter(Boolean);setNavInitials((v.length>1?`${v[0][0]}${v[v.length-1][0]}`:(v[0]||'MO').slice(0,2)).toUpperCase())})},[userId,profileOpenSignal]);\n"
+          s=s.replace(anchor,anchor+profile_effect,1)
+          old_chat="if(mode==='chat'&&userId)return<ChatScreen userId={userId} initialTarget={chatTarget} initialRoomId={notificationRoomId} unreadCount={unreadCount} onUnreadChange={setUnreadCount} onBack={goHome} onHome={goHome} onContacts={goContacts} onProfile={openProfile}/>;"
+          new_chat="if(mode==='chat'&&userId)return<ChatScreen userId={userId} initialTarget={chatTarget} initialRoomId={notificationRoomId} unreadCount={unreadCount} onUnreadChange={setUnreadCount} onBack={goHome} onHome={goHome} onContacts={goContacts} onProfile={openProfile} profileAvatar={navAvatar} profileInitials={navInitials}/>;"
+          assert old_chat in s
+          s=s.replace(old_chat,new_chat,1)
+          old_nav='<TouchableOpacity onPress={openProfile} style={s.navItem}><View style={s.inactive}><Ionicons name="person-circle-outline" size={23} color="#555"/><Text style={[s.inactiveText,{color:\'#555\'}]}>Compte</Text></View></TouchableOpacity>'
+          new_nav='<TouchableOpacity onPress={openProfile} style={s.navItem}><View style={s.inactive}>{navAvatar?<Image source={{uri:navAvatar}} style={s.navAvatar}/>:<View style={s.navInitialCircle}><Text style={s.navInitialText}>{navInitials}</Text></View>}<Text style={[s.inactiveText,{color:\'#555\'}]}>Compte</Text></View></TouchableOpacity>'
+          assert old_nav in s
+          s=s.replace(old_nav,new_nav,1)
+          s=s.replace("forgotButton:{position:'absolute'","navAvatar:{width:27,height:27,borderRadius:14},navInitialCircle:{width:27,height:27,borderRadius:14,backgroundColor:'#eeeef3',alignItems:'center',justifyContent:'center'},navInitialText:{fontSize:10,fontWeight:'900',color:'#444'},forgotButton:{position:'absolute'",1)
+          p.write_text(s)
+
+          p=Path('src/ChatScreen.tsx')
+          s=p.read_text()
+          s=s.replace("import{Alert,FlatList,KeyboardAvoidingView,Platform,SafeAreaView,StyleSheet,Text,TextInput,TouchableOpacity,View}from'react-native';","import{Alert,FlatList,Image,KeyboardAvoidingView,Platform,SafeAreaView,StyleSheet,Text,TextInput,TouchableOpacity,View}from'react-native';",1)
+          old_sig="export default function ChatScreen({userId,initialTarget,initialRoomId,unreadCount,onUnreadChange,onBack,onHome,onContacts,onProfile}:{userId:string;initialTarget:ChatTarget|null;initialRoomId?:string|null;unreadCount:number;onUnreadChange:(n:number)=>void;onBack:()=>void;onHome:()=>void;onContacts:()=>void;onProfile:()=>void}){"
+          new_sig="export default function ChatScreen({userId,initialTarget,initialRoomId,unreadCount,onUnreadChange,onBack,onHome,onContacts,onProfile,profileAvatar,profileInitials}:{userId:string;initialTarget:ChatTarget|null;initialRoomId?:string|null;unreadCount:number;onUnreadChange:(n:number)=>void;onBack:()=>void;onHome:()=>void;onContacts:()=>void;onProfile:()=>void;profileAvatar:string|null;profileInitials:string}){"
+          assert old_sig in s
+          s=s.replace(old_sig,new_sig,1)
+          s=s.replace("<BottomNav unreadCount={unreadCount} onHome={onHome} onContacts={onContacts} onProfile={onProfile}/>","<BottomNav unreadCount={unreadCount} onHome={onHome} onContacts={onContacts} onProfile={onProfile} profileAvatar={profileAvatar} profileInitials={profileInitials}/>",1)
+          old_bottom="function BottomNav({unreadCount,onHome,onContacts,onProfile}:{unreadCount:number;onHome:()=>void;onContacts:()=>void;onProfile:()=>void}){return<View style={s.bottomWrap}><View style={s.bottom}><TouchableOpacity onPress={onHome} style={s.nav}><Ionicons name=\"home-outline\" size={21} color=\"#6b2cff\"/><Text style={s.navText}>Accueil</Text></TouchableOpacity><LinearGradient colors={['#4932ff','#ed00b3']} style={[s.nav,s.navSelected]}><View><Ionicons name=\"chatbubbles\" size={21} color=\"#fff\"/>{unreadCount>0&&<View style={s.navBadge}><Text style={s.navBadgeText}>{unreadCount>99?'99+':unreadCount}</Text></View>}</View><Text style={s.navActive}>Discussions</Text></LinearGradient><TouchableOpacity onPress={onContacts} style={s.nav}><Ionicons name=\"people-outline\" size={22} color=\"#d700b0\"/><Text style={[s.navText,{color:'#d700b0'}]}>Contacts</Text></TouchableOpacity><TouchableOpacity onPress={onProfile} style={s.nav}><Ionicons name=\"person-circle-outline\" size={23} color=\"#555\"/><Text style={[s.navText,{color:'#555'}]}>Compte</Text></TouchableOpacity></View></View>}"
+          new_bottom="function BottomNav({unreadCount,onHome,onContacts,onProfile,profileAvatar,profileInitials}:{unreadCount:number;onHome:()=>void;onContacts:()=>void;onProfile:()=>void;profileAvatar:string|null;profileInitials:string}){return<View style={s.bottomWrap}><View style={s.bottom}><TouchableOpacity onPress={onHome} style={s.nav}><Ionicons name=\"home-outline\" size={21} color=\"#6b2cff\"/><Text style={s.navText}>Accueil</Text></TouchableOpacity><LinearGradient colors={['#4932ff','#ed00b3']} style={[s.nav,s.navSelected]}><View><Ionicons name=\"chatbubbles\" size={21} color=\"#fff\"/>{unreadCount>0&&<View style={s.navBadge}><Text style={s.navBadgeText}>{unreadCount>99?'99+':unreadCount}</Text></View>}</View><Text style={s.navActive}>Discussions</Text></LinearGradient><TouchableOpacity onPress={onContacts} style={s.nav}><Ionicons name=\"people-outline\" size={22} color=\"#d700b0\"/><Text style={[s.navText,{color:'#d700b0'}]}>Contacts</Text></TouchableOpacity><TouchableOpacity onPress={onProfile} style={s.nav}>{profileAvatar?<Image source={{uri:profileAvatar}} style={s.navAvatar}/>:<View style={s.navInitialCircle}><Text style={s.navInitialText}>{profileInitials}</Text></View>}<Text style={[s.navText,{color:'#555'}]}>Compte</Text></TouchableOpacity></View></View>}"
+          assert old_bottom in s
+          s=s.replace(old_bottom,new_bottom,1)
+          s=s.replace("navBadgeText:{color:'#fff'","navAvatar:{width:27,height:27,borderRadius:14},navInitialCircle:{width:27,height:27,borderRadius:14,backgroundColor:'#eeeef3',alignItems:'center',justifyContent:'center'},navInitialText:{fontSize:10,fontWeight:'900',color:'#444'},navBadgeText:{color:'#fff'",1)
+          p.write_text(s)
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name "onlive-bot"
+          git config user.email "noreply@onlive-app.com"
+          git add src/Root.tsx src/ChatScreen.tsx
+          git commit -m "Show profile avatar in bottom navigation"
+          git push origin HEAD:main
