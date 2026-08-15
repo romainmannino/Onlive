@@ -56,6 +56,22 @@ export default function MainApp({onOpenDiscussions,onStartChat,unreadCount=0,ini
   useEffect(()=>{if(screen!=='home'||!matches.length)return;refreshLiveFriends(matches);const timer=setInterval(()=>refreshLiveFriends(matches),3000);return()=>clearInterval(timer)},[screen,matches]);
   useEffect(()=>{if(!userId||screen!=='home')return;checkProgramNotifications();const timer=setInterval(checkProgramNotifications,3000);return()=>clearInterval(timer)},[userId,screen,matches]);
 
+  useEffect(()=>{
+    if(!userId||screen==='auth')return;
+    let refreshing=false;
+    const refresh=async()=>{
+      if(refreshing)return;
+      refreshing=true;
+      try{await autoLoadContacts()}finally{refreshing=false}
+    };
+    const timer=setInterval(refresh,60000);
+    const AppState=require('react-native').AppState;
+    const sub=AppState.addEventListener('change',(state:string)=>{
+      if(state==='active')refresh();
+    });
+    return()=>{clearInterval(timer);sub.remove()};
+  },[userId,screen]);
+
   const visiblePrograms=useMemo(()=>programs.filter(p=>programState(p,now)!=='expired').filter(p=>{if(filter==='Tous')return true;if(filter==='Sport'){const isSport=p.category==='Sport'||p.category==='Foot';return isSport&&(sportFilter==='Tous'||sportType(p)===sportFilter)}return p.category===filter}),[filter,sportFilter,programs,now]);
   const phoneContacts=useMemo(()=>deviceContacts.filter(c=>contactPhones(c).length>0),[deviceContacts]);
   const matchMap=useMemo(()=>{const m=new Map<string,Match>();matches.forEach(x=>m.set(x.phone,x));return m},[matches]);
