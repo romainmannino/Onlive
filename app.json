@@ -17,6 +17,7 @@
       "bundleIdentifier": "com.romainmannino.onlive",
       "infoPlist": {
         "NSContactsUsageDescription": "Onlive utilise vos contacts pour vous montrer les proches qui utilisent déjà l'application.",
+        "NSPhotoLibraryUsageDescription": "Onlive utilise votre photothèque uniquement pour choisir votre photo de profil.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -39,6 +40,13 @@
         "expo-contacts",
         {
           "contactsPermission": "Autoriser Onlive à accéder à vos contacts pour retrouver vos proches déjà inscrits."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Autoriser Onlive à accéder à vos photos pour choisir votre photo de profil.",
+          "cameraPermission": false
         }
       ],
       [
