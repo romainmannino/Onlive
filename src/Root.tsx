@@ -96,7 +96,16 @@ export default function Root(){
  };
 
  const openDiscussions=()=>{setChatTarget(null);setNotificationRoomId(null);setMode('chat')};
- const startChat=(target:ChatTarget)=>{setNotificationRoomId(null);setChatTarget(target);setMode('chat')};
+ const startChat=async(target:ChatTarget)=>{
+  if(!userId||!target.programId)return Alert.alert('Discussion indisponible','Tu dois être Onlive sur le même programme que ton proche pour discuter.');
+  const{data:mine}=await supabase.from('live_status').select('is_live,program_id,started_at').eq('user_id',userId).maybeSingle();
+  const{data:theirs}=await supabase.from('live_status').select('is_live,program_id,started_at').eq('user_id',target.userId).maybeSingle();
+  const fresh=(v:any)=>Boolean(v?.is_live&&v?.program_id&&v?.started_at&&Date.now()-new Date(v.started_at).getTime()<4*60*60*1000);
+  if(!fresh(mine))return Alert.alert('Tu es Offlive','Choisis d’abord le programme que tu regardes pour pouvoir discuter.');
+  if(mine?.program_id!==target.programId)return Alert.alert('Programme différent',`Tu peux voir que ${target.name} est Onlive, mais vous devez regarder le même programme pour discuter.`);
+  if(!fresh(theirs)||theirs?.program_id!==mine?.program_id)return Alert.alert('Programme différent',`${target.name} ne regarde plus le même programme que toi.`);
+  setNotificationRoomId(null);setChatTarget(target);setMode('chat');
+ };
  const goHome=()=>{setChatTarget(null);setNotificationRoomId(null);setAppSection('home');setMode('app')};
  const goContacts=()=>{setChatTarget(null);setNotificationRoomId(null);setAppSection('contacts');setMode('app')};
 
