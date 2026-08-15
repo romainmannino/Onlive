@@ -1,0 +1,86 @@
+name: Onlive chat details
+
+on:
+  push:
+    paths:
+      - '.github/workflows/onlive-chat-details.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  polish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Apply compact chat details
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # Home: keep friend's program on a single line with ellipsis
+          p=Path('src/MainApp.tsx')
+          s=p.read_text()
+          old='<Text style={s.friendProgram}>{f.program}</Text>'
+          new='<Text numberOfLines={1} ellipsizeMode="tail" style={s.friendProgram}>{f.program}</Text>'
+          if old not in s:
+              raise SystemExit('MainApp friend program target not found')
+          s=s.replace(old,new,1)
+          s=s.replace("friendProgram:{fontWeight:'700',color:'#4c2cff'}","friendProgram:{fontWeight:'700',color:'#4c2cff',flexShrink:1}",1)
+          p.write_text(s)
+
+          p=Path('src/ChatScreen.tsx')
+          s=p.read_text()
+
+          # Date helpers: today = hour, yesterday = Hier, older = dd/mm
+          anchor="const normalizePhone=(value='')=>{let p=value.replace(/[^\\d+]/g,'');if(p.startsWith('0033'))p='+33'+p.slice(4);if(p.startsWith('0'))p='+33'+p.slice(1);if(!p.startsWith('+')&&p.length===9)p='+33'+p;return p};"
+          helper="""const normalizePhone=(value='')=>{let p=value.replace(/[^\\d+]/g,'');if(p.startsWith('0033'))p='+33'+p.slice(4);if(p.startsWith('0'))p='+33'+p.slice(1);if(!p.startsWith('+')&&p.length===9)p='+33'+p;return p};
+const messageTime=(value:string|null)=>{if(!value)return'';const d=new Date(value);return d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}).replace(':','h')};
+const activityTime=(value:string|null)=>{if(!value)return'';const d=new Date(value),now=new Date();const start=new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime(),day=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();if(day===start)return messageTime(value);if(day===start-86400000)return'Hier';return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})};"""
+          if anchor not in s:
+              raise SystemExit('ChatScreen helper anchor not found')
+          s=s.replace(anchor,helper,1)
+
+          # Participant labels always start with Moi
+          old="const label=(ids:string[])=>{const o=ids.filter(id=>id!==userId),v=o.slice(0,2).map(id=>names.get(id)||'Participant');return v.join(', ')+(o.length>2?` +${o.length-2}`:'')||'Discussion'};"
+          new="const label=(ids:string[])=>{const o=ids.filter(id=>id!==userId),v=o.slice(0,2).map(id=>names.get(id)||'Participant');return ['Moi',...v].join(', ')+(o.length>2?` +${o.length-2}`:'')};"
+          if old not in s:
+              raise SystemExit('ChatScreen label target not found')
+          s=s.replace(old,new,1)
+
+          # Discussion list: timestamp on the right, compact rows
+          old="<View style={{flex:1,minWidth:0}}><Text numberOfLines={1} ellipsizeMode=\"tail\" style={s.people}>{label(item.member_ids)}</Text><Text numberOfLines={1} ellipsizeMode=\"tail\" style={s.preview}>{item.last_message||'Nouvelle discussion'}</Text></View>{item.unread_count>0&&<View style={s.roomBadge}><Text style={s.badgeText}>{item.unread_count>99?'99+':item.unread_count}</Text></View>}<Ionicons name=\"chevron-forward\" size={18} color=\"#bbb\"/>"
+          new="<View style={{flex:1,minWidth:0}}><Text numberOfLines={1} ellipsizeMode=\"tail\" style={s.people}>{label(item.member_ids)}</Text><Text numberOfLines={1} ellipsizeMode=\"tail\" style={s.preview}>{item.last_message||'Nouvelle discussion'}</Text></View><View style={s.roomMeta}><Text style={s.roomTime}>{activityTime(item.last_message_at)}</Text>{item.unread_count>0&&<View style={s.roomBadge}><Text style={s.badgeText}>{item.unread_count>99?'99+':item.unread_count}</Text></View>}</View><Ionicons name=\"chevron-forward\" size={17} color=\"#c0c0c5\"/>"
+          if old not in s:
+              raise SystemExit('Discussion row target not found')
+          s=s.replace(old,new,1)
+
+          # Chat header: smaller program, one line, participants left aligned
+          old="<View style={{flex:1,alignItems:'center'}}><Text style={s.chatTitle}>{active?.program_title||initialTarget?.programTitle||'Discussion Onlive'}</Text><Text style={s.chatSub}>{active?label(active.member_ids):initialTarget?.name||''}</Text></View>"
+          new="<View style={s.chatHeadText}><Text numberOfLines={1} ellipsizeMode=\"tail\" style={s.chatTitle}>{active?.program_title||initialTarget?.programTitle||'Discussion Onlive'}</Text><Text numberOfLines={1} ellipsizeMode=\"tail\" style={s.chatSub}>{active?label(active.member_ids):`Moi, ${initialTarget?.name||'Participant'}`}</Text></View>"
+          if old not in s:
+              raise SystemExit('Chat header target not found')
+          s=s.replace(old,new,1)
+
+          # Chat messages: time at the right of the message
+          old="<View style={[s.bubble,mine&&s.mine]}><Text style={[s.body,mine&&{color:'#fff'}]}>{item.body}</Text></View>"
+          new="<View style={[s.bubble,mine&&s.mine]}><View style={s.bubbleContent}><Text style={[s.body,mine&&{color:'#fff'}]}>{item.body}</Text><Text style={[s.messageTime,mine&&s.messageTimeMine]}>{messageTime(item.created_at)}</Text></View></View>"
+          if old not in s:
+              raise SystemExit('Message bubble target not found')
+          s=s.replace(old,new,1)
+
+          # Styles
+          s=s.replace("preview:{fontSize:13,color:'#888',marginTop:3},roomBadge:","preview:{fontSize:13,color:'#888',marginTop:3},roomMeta:{alignItems:'flex-end',justifyContent:'center',minWidth:38,gap:5},roomTime:{fontSize:11,color:'#999'},roomBadge:",1)
+          s=s.replace("chatTitle:{fontSize:16,fontWeight:'900'},chatSub:{fontSize:11,color:'#777'},","chatHeadText:{flex:1,minWidth:0,alignItems:'flex-start',paddingHorizontal:10},chatTitle:{fontSize:14,fontWeight:'700',width:'100%'},chatSub:{fontSize:11,color:'#777',marginTop:2,width:'100%'},",1)
+          s=s.replace("bubble:{maxWidth:'82%',backgroundColor:'#fff',padding:11,borderRadius:16},mine:{backgroundColor:'#6b2cff'},body:{fontSize:15},","bubble:{maxWidth:'82%',backgroundColor:'#fff',padding:11,borderRadius:16},mine:{backgroundColor:'#6b2cff'},bubbleContent:{flexDirection:'row',alignItems:'flex-end',flexWrap:'wrap'},body:{fontSize:15,flexShrink:1},messageTime:{fontSize:9,color:'#999',marginLeft:8,marginTop:4},messageTimeMine:{color:'rgba(255,255,255,.72)'},",1)
+          p.write_text(s)
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name "Onlive Bot"
+          git config user.email "actions@github.com"
+          git add src/MainApp.tsx src/ChatScreen.tsx
+          git commit -m "Polish program labels and chat timestamps"
+          git push
