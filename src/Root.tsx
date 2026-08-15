@@ -8,6 +8,7 @@ import{supabase}from'./supabase';
 import{Notifications,registerPushNotifications,setAppBadge}from'./notifications';
 
 type ChatTarget={userId:string;name:string;programId:string|null;programTitle:string;channel:string};
+const AUTH_TEST_USER='2d57c97d-f53a-458e-acbf-454295cf75db';
 
 export default function Root(){
  const[mode,setMode]=useState<'app'|'chat'>('app');
@@ -22,6 +23,7 @@ export default function Root(){
  const[newPassword,setNewPassword]=useState('');
  const[confirmPassword,setConfirmPassword]=useState('');
  const[resetLoading,setResetLoading]=useState(false);
+ const[authTestLoading,setAuthTestLoading]=useState<'confirmation'|'recovery'|null>(null);
 
  useEffect(()=>{
   supabase.auth.getSession().then(({data})=>setUserId(data.session?.user.id||null));
@@ -51,11 +53,7 @@ export default function Root(){
     const refreshToken=get('refresh_token');
     if(code){const{error}=await supabase.auth.exchangeCodeForSession(code);if(error)throw error}
     else if(accessToken&&refreshToken){const{error}=await supabase.auth.setSession({access_token:accessToken,refresh_token:refreshToken});if(error)throw error}
-    setForgotOpen(false);
-    setNotificationRoomId(null);
-    setChatTarget(null);
-    setAppSection('home');
-    setMode('app');
+    setForgotOpen(false);setNotificationRoomId(null);setChatTarget(null);setAppSection('home');setMode('app');
     if(isRecovery)setResetOpen(true);
     else Alert.alert('Adresse confirmée','Ton adresse e-mail est confirmée. Bienvenue sur Onlive !');
    }catch(e:any){Alert.alert('Lien invalide',e?.message||'Le lien Onlive est invalide ou a expiré.')}
@@ -69,30 +67,31 @@ export default function Root(){
  useEffect(()=>{if(!userId){setUnreadCount(0);setAppBadge(0);return}let alive=true;const refresh=async()=>{const{data}=await supabase.rpc('chat_unread_count');const n=Number(data)||0;if(alive){setUnreadCount(n);setAppBadge(n)}};refresh();const t=setInterval(refresh,2000);return()=>{alive=false;clearInterval(t)}},[userId]);
  useEffect(()=>{const sub=Notifications.addNotificationResponseReceivedListener(response=>{const d:any=response.notification.request.content.data||{};if((d.type==='chat_message'||d.type==='chat_invite')&&d.roomId){setChatTarget(null);setNotificationRoomId(String(d.roomId));setMode('chat')}else if(d.type==='watching'){setNotificationRoomId(null);setChatTarget(null);setAppSection('home');setMode('app')}});return()=>sub.remove()},[]);
 
+ const runAuthTest=async(testMode:'confirmation'|'recovery')=>{
+  setAuthTestLoading(testMode);
+  try{
+   const{data,error}=await supabase.functions.invoke('auth-test-link',{body:{mode:testMode}});
+   if(error)throw error;
+   if(!data?.action_link)throw new Error(data?.error||'Lien de test introuvable');
+   const ok=await Linking.canOpenURL(data.action_link);
+   if(!ok)throw new Error('Impossible d’ouvrir le lien de test');
+   await Linking.openURL(data.action_link);
+  }catch(e:any){Alert.alert('Test impossible',e?.message||'Impossible de générer le lien de test.')}
+  finally{setAuthTestLoading(null)}
+ };
+
  const sendResetEmail=async()=>{
   const email=resetEmail.trim().toLowerCase();
   if(!email)return Alert.alert('Adresse e-mail','Entre l’adresse e-mail de ton compte Onlive.');
   setResetLoading(true);
-  try{
-   const{error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo:'onlive://reset-password'});
-   if(error)throw error;
-   setForgotOpen(false);
-   Alert.alert('E-mail envoyé','Ouvre le mail puis touche le lien : Onlive s’ouvrira directement pour choisir ton nouveau mot de passe.');
-  }catch(e:any){Alert.alert('Envoi impossible',e?.message||'Impossible d’envoyer le mail de réinitialisation.')}
-  finally{setResetLoading(false)}
+  try{const{error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo:'onlive://reset-password'});if(error)throw error;setForgotOpen(false);Alert.alert('E-mail envoyé','Ouvre le mail puis touche le lien : Onlive s’ouvrira directement pour choisir ton nouveau mot de passe.')}catch(e:any){Alert.alert('Envoi impossible',e?.message||'Impossible d’envoyer le mail de réinitialisation.')}finally{setResetLoading(false)}
  };
 
  const saveNewPassword=async()=>{
   if(newPassword.length<6)return Alert.alert('Mot de passe trop court','Choisis au moins 6 caractères.');
   if(newPassword!==confirmPassword)return Alert.alert('Mots de passe différents','Les deux mots de passe doivent être identiques.');
   setResetLoading(true);
-  try{
-   const{error}=await supabase.auth.updateUser({password:newPassword});
-   if(error)throw error;
-   setResetOpen(false);setNewPassword('');setConfirmPassword('');
-   Alert.alert('Mot de passe modifié','Ton nouveau mot de passe est enregistré.');
-  }catch(e:any){Alert.alert('Modification impossible',e?.message||'Impossible de modifier le mot de passe.')}
-  finally{setResetLoading(false)}
+  try{const{error}=await supabase.auth.updateUser({password:newPassword});if(error)throw error;setResetOpen(false);setNewPassword('');setConfirmPassword('');Alert.alert('Mot de passe modifié','Ton nouveau mot de passe est enregistré.')}catch(e:any){Alert.alert('Modification impossible',e?.message||'Impossible de modifier le mot de passe.')}finally{setResetLoading(false)}
  };
 
  const openDiscussions=()=>{setChatTarget(null);setNotificationRoomId(null);setMode('chat')};
@@ -113,6 +112,7 @@ export default function Root(){
  return<View style={s.root}>
   <MainApp initialScreen={appSection} onOpenDiscussions={openDiscussions} onStartChat={startChat} unreadCount={unreadCount}/>
   {!userId&&<TouchableOpacity style={s.forgotButton} onPress={()=>setForgotOpen(true)}><Text style={s.forgotText}>Mot de passe oublié ?</Text></TouchableOpacity>}
+  {userId===AUTH_TEST_USER&&<View style={s.authTestBox}><Text style={s.authTestTitle}>TEST AUTH</Text><TouchableOpacity disabled={!!authTestLoading} style={s.authTestBtn} onPress={()=>runAuthTest('confirmation')}><Text style={s.authTestText}>{authTestLoading==='confirmation'?'Ouverture…':'Tester confirmation'}</Text></TouchableOpacity><TouchableOpacity disabled={!!authTestLoading} style={s.authTestBtn} onPress={()=>runAuthTest('recovery')}><Text style={s.authTestText}>{authTestLoading==='recovery'?'Ouverture…':'Tester mot de passe'}</Text></TouchableOpacity></View>}
   {userId&&<View style={s.navCover}><View style={s.compactNav}><NavItem active={appSection==='home'} icon="home" label="Accueil" onPress={goHome}/><TouchableOpacity onPress={openDiscussions} style={s.navItem}><View style={s.inactive}><View><Ionicons name="chatbubbles-outline" size={21} color="#9728df"/>{unreadCount>0&&<View style={s.badge}><Text style={s.badgeText}>{unreadCount>99?'99+':unreadCount}</Text></View>}</View><Text style={[s.inactiveText,{color:'#9728df'}]}>Discussions</Text></View></TouchableOpacity><NavItem active={appSection==='contacts'} icon="people" label="Contacts" onPress={goContacts}/></View></View>}
   <Modal visible={forgotOpen} transparent animationType="fade" onRequestClose={()=>setForgotOpen(false)}><View style={s.modalBackdrop}><View style={s.modalCard}><View style={s.modalHead}><Text style={s.modalTitle}>Mot de passe oublié</Text><TouchableOpacity onPress={()=>setForgotOpen(false)}><Ionicons name="close" size={24}/></TouchableOpacity></View><Text style={s.modalText}>Entre ton e-mail. Onlive t’enverra un lien sécurisé pour choisir un nouveau mot de passe.</Text><TextInput value={resetEmail} onChangeText={setResetEmail} autoCapitalize="none" keyboardType="email-address" placeholder="Adresse e-mail" style={s.resetInput}/><TouchableOpacity disabled={resetLoading} onPress={sendResetEmail}><LinearGradient colors={['#4932ff','#ed00b3']} style={s.resetButton}><Text style={s.resetButtonText}>{resetLoading?'Envoi…':'Envoyer le lien'}</Text></LinearGradient></TouchableOpacity></View></View></Modal>
   <Modal visible={resetOpen} transparent animationType="fade" onRequestClose={()=>setResetOpen(false)}><View style={s.modalBackdrop}><View style={s.modalCard}><Text style={s.modalTitle}>Nouveau mot de passe</Text><Text style={s.modalText}>Choisis ton nouveau mot de passe Onlive.</Text><TextInput value={newPassword} onChangeText={setNewPassword} secureTextEntry placeholder="Nouveau mot de passe" style={s.resetInput}/><TextInput value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry placeholder="Confirmer le mot de passe" style={s.resetInput}/><TouchableOpacity disabled={resetLoading} onPress={saveNewPassword}><LinearGradient colors={['#4932ff','#ed00b3']} style={s.resetButton}><Text style={s.resetButtonText}>{resetLoading?'Enregistrement…':'Enregistrer'}</Text></LinearGradient></TouchableOpacity></View></View></Modal>
@@ -120,4 +120,4 @@ export default function Root(){
 }
 
 function NavItem({active,icon,label,onPress}:{active:boolean;icon:'home'|'people';label:string;onPress:()=>void}){return<TouchableOpacity onPress={onPress} style={s.navItem}>{active?<LinearGradient colors={['#4932ff','#ed00b3']} style={s.active}><Ionicons name={icon} size={21} color="#fff"/><Text style={s.activeText}>{label}</Text></LinearGradient>:<View style={s.inactive}><Ionicons name={`${icon}-outline` as any} size={21} color={icon==='people'?'#d700b0':'#6b2cff'}/><Text style={[s.inactiveText,{color:icon==='people'?'#d700b0':'#6b2cff'}]}>{label}</Text></View>}</TouchableOpacity>}
-const s=StyleSheet.create({root:{flex:1},navCover:{position:'absolute',left:0,right:0,bottom:0,height:78,backgroundColor:'#f6f6f8',alignItems:'center',justifyContent:'flex-start',paddingTop:6},compactNav:{width:'92%',height:58,backgroundColor:'#fff',borderRadius:29,padding:4,flexDirection:'row',shadowColor:'#000',shadowOpacity:.12,shadowRadius:10,shadowOffset:{width:0,height:3},elevation:7},navItem:{flex:1},active:{flex:1,borderRadius:24,alignItems:'center',justifyContent:'center'},inactive:{flex:1,borderRadius:24,alignItems:'center',justifyContent:'center'},activeText:{fontSize:10,color:'#fff',fontWeight:'800',marginTop:1},inactiveText:{fontSize:10,fontWeight:'800',marginTop:1},badge:{position:'absolute',right:-11,top:-7,minWidth:17,height:17,borderRadius:9,backgroundColor:'#ff1744',alignItems:'center',justifyContent:'center',paddingHorizontal:4},badgeText:{color:'#fff',fontSize:9,fontWeight:'900'},forgotButton:{position:'absolute',bottom:26,left:0,right:0,alignItems:'center',paddingVertical:10},forgotText:{color:'#fff',fontWeight:'800',textDecorationLine:'underline'},modalBackdrop:{flex:1,backgroundColor:'rgba(0,0,0,.5)',alignItems:'center',justifyContent:'center',padding:22},modalCard:{width:'100%',maxWidth:430,backgroundColor:'#fff',borderRadius:26,padding:20},modalHead:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},modalTitle:{fontSize:22,fontWeight:'900',color:'#111'},modalText:{fontSize:14,color:'#666',lineHeight:20,marginTop:8,marginBottom:16},resetInput:{height:54,borderWidth:1,borderColor:'#dddde5',borderRadius:15,paddingHorizontal:15,fontSize:16,marginBottom:11},resetButton:{height:54,borderRadius:17,alignItems:'center',justifyContent:'center',marginTop:3},resetButtonText:{color:'#fff',fontSize:16,fontWeight:'900'}});
+const s=StyleSheet.create({root:{flex:1},navCover:{position:'absolute',left:0,right:0,bottom:0,height:78,backgroundColor:'#f6f6f8',alignItems:'center',justifyContent:'flex-start',paddingTop:6},compactNav:{width:'92%',height:58,backgroundColor:'#fff',borderRadius:29,padding:4,flexDirection:'row',shadowColor:'#000',shadowOpacity:.12,shadowRadius:10,shadowOffset:{width:0,height:3},elevation:7},navItem:{flex:1},active:{flex:1,borderRadius:24,alignItems:'center',justifyContent:'center'},inactive:{flex:1,borderRadius:24,alignItems:'center',justifyContent:'center'},activeText:{fontSize:10,color:'#fff',fontWeight:'800',marginTop:1},inactiveText:{fontSize:10,fontWeight:'800',marginTop:1},badge:{position:'absolute',right:-11,top:-7,minWidth:17,height:17,borderRadius:9,backgroundColor:'#ff1744',alignItems:'center',justifyContent:'center',paddingHorizontal:4},badgeText:{color:'#fff',fontSize:9,fontWeight:'900'},forgotButton:{position:'absolute',bottom:26,left:0,right:0,alignItems:'center',paddingVertical:10},forgotText:{color:'#fff',fontWeight:'800',textDecorationLine:'underline'},authTestBox:{position:'absolute',right:12,bottom:88,backgroundColor:'rgba(15,15,20,.94)',borderRadius:14,padding:8,gap:6,zIndex:99},authTestTitle:{color:'#aaa',fontSize:9,fontWeight:'900',textAlign:'center'},authTestBtn:{backgroundColor:'#6b2cff',borderRadius:10,paddingHorizontal:10,paddingVertical:8},authTestText:{color:'#fff',fontSize:10,fontWeight:'900'},modalBackdrop:{flex:1,backgroundColor:'rgba(0,0,0,.5)',alignItems:'center',justifyContent:'center',padding:22},modalCard:{width:'100%',maxWidth:430,backgroundColor:'#fff',borderRadius:26,padding:20},modalHead:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},modalTitle:{fontSize:22,fontWeight:'900',color:'#111'},modalText:{fontSize:14,color:'#666',lineHeight:20,marginTop:8,marginBottom:16},resetInput:{height:54,borderWidth:1,borderColor:'#dddde5',borderRadius:15,paddingHorizontal:15,fontSize:16,marginBottom:11},resetButton:{height:54,borderRadius:17,alignItems:'center',justifyContent:'center',marginTop:3},resetButtonText:{color:'#fff',fontSize:16,fontWeight:'900'}});
