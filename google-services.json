@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "883947960949",
+    "project_id": "onlive-71a97",
+    "storage_bucket": "onlive-71a97.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:883947960949:android:48f877bd31d5cf447b963c",
+        "android_client_info": {
+          "package_name": "com.romainmannino.onlive"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAXwtWdi9H1WNrsmzZzj9ntLdgQ3VtXlq0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
