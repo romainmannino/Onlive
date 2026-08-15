@@ -16,7 +16,7 @@ type ChatTarget={userId:string;name:string;programId:string|null;programTitle:st
 type ContactFilter='Tous'|'Onlive'|'Inviter';
 type ProgramState='future'|'current'|'expired';
 
-const FILTERS=['Tous','Divertissement','Film','Série','Sport']as const;
+const FILTERS=['Tous','Sport','Divertissement','Film','Série']as const;
 const SPORTS=['Tous','Football','Tennis','Rugby','F1 / Auto','Cyclisme','Basket','Handball','Moto','Volley','Golf','Sports de combat','Athlétisme','Autres']as const;
 const CONTACT_FILTERS:['Tous','Onlive','Inviter']=['Tous','Onlive','Inviter'];
 const INVITE_URL='https://github.com/romainmannino/Onlive';
