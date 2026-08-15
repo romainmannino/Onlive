@@ -1,5 +1,6 @@
 import{Platform}from'react-native';
 import*as Notifications from'expo-notifications';
+import*as Contacts from'expo-contacts';
 import Constants from'expo-constants';
 import{supabase}from'./supabase';
 
@@ -11,6 +12,54 @@ Notifications.setNotificationHandler({
     shouldSetBadge:false,
   }),
 });
+
+function normalizePhone(value=''){
+  let p=value.replace(/[^\d+]/g,'');
+  if(p.startsWith('0033'))p='+33'+p.slice(4);
+  if(p.startsWith('0'))p='+33'+p.slice(1);
+  if(!p.startsWith('+')&&p.length===9)p='+33'+p;
+  return p;
+}
+
+async function syncContactAliases(userId:string){
+  try{
+    const permission=await Contacts.getPermissionsAsync();
+    if(permission.status!=='granted')return;
+    const{data}=await Contacts.getContactsAsync({fields:[Contacts.Fields.PhoneNumbers],pageSize:0});
+    const local=new Map<string,string>();
+    for(const c of data){
+      const name=(c.name||'').trim();
+      if(!name)continue;
+      for(const n of c.phoneNumbers||[]){
+        const phone=normalizePhone(n.number||'');
+        if(phone)local.set(phone,name);
+      }
+    }
+    const phones=[...local.keys()];
+    if(!phones.length)return;
+    const matched:any[]=[];
+    for(let i=0;i<phones.length;i+=300){
+      const{data:rows,error}=await supabase.rpc('match_contact_phones',{phone_list:phones.slice(i,i+300)});
+      if(error)throw error;
+      matched.push(...(rows||[]));
+    }
+    const aliases=new Map<string,string>();
+    for(const row of matched){
+      const phone=normalizePhone(row.phone_e164||'');
+      const name=local.get(phone);
+      if(row.user_id&&name)aliases.set(row.user_id,name);
+    }
+    if(!aliases.size)return;
+    const rows=[...aliases.entries()].map(([contact_user_id,local_name])=>({
+      owner_user_id:userId,
+      contact_user_id,
+      local_name,
+      updated_at:new Date().toISOString(),
+    }));
+    const{error}=await supabase.from('contact_aliases').upsert(rows,{onConflict:'owner_user_id,contact_user_id'});
+    if(error)throw error;
+  }catch(e){console.warn('Contact alias sync failed',e)}
+}
 
 export async function registerPushNotifications(userId:string){
   try{
@@ -38,6 +87,7 @@ export async function registerPushNotifications(userId:string){
       updated_at:new Date().toISOString(),
     },{onConflict:'expo_push_token'});
     await supabase.from('notification_preferences').upsert({user_id:userId},{onConflict:'user_id',ignoreDuplicates:true});
+    await syncContactAliases(userId);
     return token;
   }catch(e){console.warn('Push registration failed',e);return null}
 }
