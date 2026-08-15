@@ -35,96 +35,99 @@ Onlive n’est pas un service de streaming et ne diffuse aucun programme audiovi
 ### Mots-clés proposés
 onlive,tv,direct,sport,amis,discussion,live,programme,proches,social
 
-### URLs
-À activer avant soumission :
-- Privacy Policy URL : https://onlive-app.com/privacy.html
-- Support URL : https://onlive-app.com/support.html
+## URLs finales
+- Privacy Policy URL : https://onlive-app.com/privacy
+- Support URL : https://onlive-app.com/support
 - Marketing URL : https://onlive-app.com
-- User Privacy Choices URL : https://onlive-app.com/delete-account.html
+- User Privacy Choices URL : https://onlive-app.com/delete-account
 
-## App Privacy — brouillon de déclaration à confirmer avec le code final
-Les réponses App Privacy doivent inclure les données collectées par l’app et par les SDK/prestataires intégrés.
+## App Privacy — état préparé
+Les réponses App Privacy doivent représenter l’app finale et les SDK intégrés.
 
 ### Coordonnées
-- Adresse e-mail : collectée pour création/authentification/récupération de compte. Liée à l’identité.
-- Numéro de téléphone : collecté si renseigné/utilisé pour la mise en relation avec les contacts. Lié à l’identité.
-- Nom/pseudonyme : profil et affichage social. Lié à l’identité.
+- Nom/pseudonyme : profil et affichage social — lié à l’identité.
+- Adresse e-mail : création, authentification et récupération du compte — liée à l’identité.
+- Numéro de téléphone : requis à la création du compte et utilisé pour la mise en relation avec les contacts — lié à l’identité.
 
 ### Contenu utilisateur
-- Photo de profil : choisie par l’utilisateur. Liée à l’identité.
-- Messages : nécessaires aux discussions. Liés à l’identité et au programme concerné.
+- Photo de profil : facultative — liée à l’identité.
+- Messages : nécessaires aux discussions — liés à l’identité et au programme concerné.
 
 ### Contacts
-- Contacts du téléphone : utilisés pour retrouver des proches déjà inscrits et faciliter les invitations. À déclarer comme Contacts. Vérifier précisément si les numéros complets sont transmis/stockés ou uniquement normalisés/comparés.
+- Avec autorisation, l’app lit les numéros du carnet d’adresses.
+- Les numéros sont normalisés puis transmis au service pour rechercher les comptes Onlive correspondants.
+- Les noms enregistrés dans le carnet du téléphone ne sont pas envoyés par ce mécanisme.
 
-### Identifiants
-- Identifiant utilisateur Supabase : fonctionnement du compte.
-- Token de notification push : acheminement des notifications.
-
-### Données d’utilisation / autres
+### Identifiants / fonctionnement
+- Identifiant utilisateur Supabase.
+- Tokens de notification push.
 - Statut Onlive/Offlive.
-- Programme regardé/sélectionné.
-- Horodatages nécessaires au fonctionnement de la présence et des discussions.
-
-### Données techniques
-- Informations techniques strictement nécessaires au fonctionnement/sécurité via les SDK intégrés. Vérifier les déclarations des SDK Supabase, Expo, Firebase/APNs et Resend au moment de remplir App Store Connect.
+- Programme sélectionné/regardé.
+- Horodatages nécessaires à la présence et aux discussions.
 
 ### Publicité / tracking
-Pour la V1 : aucune régie publicitaire tierce prévue et aucun tracking publicitaire à déclarer tant qu’aucun SDK ou ciblage publicitaire n’est intégré.
+V1 actuelle : aucune régie publicitaire tierce et aucun SDK publicitaire prévu. Ne pas déclarer de tracking publicitaire tant que cette situation reste vraie au moment du build soumis.
 
-## Permissions iOS actuellement déclarées
+## Permissions iOS
 - Contacts : retrouver les proches déjà inscrits.
 - Photothèque : choisir une photo de profil.
 - Caméra : prendre une photo de profil.
-- Notifications : messagerie et activité utile au service.
+- Notifications : messages et activité utile au service.
 
 ## Suppression de compte
-Parcours actuel dans l’app : photo de profil → Compte → Supprimer mon compte → double confirmation.
+Parcours actuel : barre du bas → photo de profil → Compte → Supprimer mon compte → confirmation.
 
-Avant soumission, vérifier sur un compte test que :
-1. le compte Auth est supprimé ;
-2. le profil et la photo sont supprimés ;
-3. les tokens push sont supprimés ;
-4. les statuts Onlive sont supprimés ;
-5. les données de discussions/messages rattachées au compte sont supprimées ou anonymisées conformément à la politique annoncée ;
-6. la reconnexion avec le compte supprimé est impossible.
+Ressource web externe : https://onlive-app.com/delete-account
 
-## Compte de review Apple
-Créer un compte de démonstration stable, sans donnée personnelle réelle.
+Test final avec compte jetable :
+1. compte Auth supprimé ;
+2. profil/photo supprimés ;
+3. tokens push supprimés ;
+4. statut Onlive supprimé ;
+5. données rattachées aux discussions/messages supprimées ou gérées conformément à la politique ;
+6. reconnexion impossible après suppression.
 
-Prévoir dans Review Notes :
+## Compte reviewer Apple
+Créer un compte de démonstration stable et sans donnée personnelle réelle.
+
+Review Notes à fournir :
 - identifiant du compte démo ;
 - mot de passe ;
 - préciser qu’Onlive ne diffuse aucun contenu TV ;
-- expliquer le parcours : choisir un programme → passer Onlive → voir un proche → discussion si même programme ;
-- indiquer que les permissions Contacts/Photo/Caméra sont optionnelles selon les fonctions utilisées.
+- expliquer : sélectionner un programme → passer Onlive → voir les proches → discussion uniquement si même programme ;
+- préciser que Contacts/Photo/Caméra ne sont utilisées que pour les fonctions associées.
 
-## Captures App Store
-Prévoir 6 captures portrait, sans donnée personnelle réelle et en respectant exactement l’UI de l’app.
+## Captures App Store finales
+Apple accepte de 1 à 10 captures par taille d’écran. Pour iPhone, préparer la série principale au format 6,9 pouces accepté par App Store Connect. La narration prévue est de 6 visuels portrait.
 
-1. Accueil OFFLIVE — « La télé devient sociale » — programmes marquants sur une seule ligne.
-2. Accueil ONLIVE sur un match type PSG–OM — « Dis ce que tu regardes ».
-3. Proches Onlive sur le même programme — « Vois qui regarde avec toi ».
-4. Chat sans image de programme — « Réagissez ensemble en direct ».
-5. Notifications — nom du proche + programme + aperçu du message.
-6. Contacts — « Retrouve tes proches sur Onlive ».
+1. **Accueil OFFLIVE** — « La télé devient sociale » — plusieurs programmes forts visibles dans le carrousel.
+2. **Accueil ONLIVE** — programme sportif marquant — « Dis ce que tu regardes ».
+3. **Tes proches Onlive** — plusieurs proches dont certains sur le même programme — « Vois qui regarde avec toi ».
+4. **Discussions** — liste compacte du programme sélectionné — « Retrouve vos réactions en direct ».
+5. **Chat** — sans image de programme — « Réagissez ensemble ».
+6. **Contacts** — liste compacte — « Retrouve tes proches sur Onlive ».
 
-Règles visuelles fixes :
-- vignettes programme uniquement sur une ligne horizontale ;
-- OFFLIVE gris ;
-- ONLIVE en dégradé Onlive ;
+Règles fixes :
+- reproduire l’UI réelle actuelle ;
+- vignettes programme sur une seule ligne horizontale ;
+- OFFLIVE gris, ONLIVE dégradé Onlive ;
+- navigation du bas à 4 entrées avec photo/initiales pour Compte ;
+- aucun nom, numéro, photo ou message personnel réel ;
 - pas d’image programme dans le chat ;
-- navigation et composants identiques à l’app réelle ;
-- noms/profils fictifs uniquement.
+- textes courts, lisibles et non trompeurs ;
+- les captures doivent représenter des fonctions réellement présentes dans l’app.
 
 ## Checklist avant “Submit for Review”
-- [ ] Domaine onlive-app.com accessible en HTTPS
-- [ ] Privacy Policy accessible dans l’app + sur le web
-- [ ] Support URL accessible
-- [ ] Suppression de compte testée de bout en bout
-- [ ] App Privacy complétée et publiée
+- [x] Domaine onlive-app.com accessible en HTTPS
+- [x] Privacy Policy publique
+- [x] Support URL publique
+- [x] Delete Account URL publique
+- [ ] Vérifier que support@onlive-app.com reçoit réellement les messages
+- [ ] Vérifier que privacy@onlive-app.com reçoit réellement les messages
+- [ ] Suppression de compte testée une dernière fois de bout en bout
+- [ ] App Privacy complétée et publiée dans App Store Connect
 - [ ] Compte reviewer créé et testé
-- [ ] Captures finales importées
+- [ ] Captures finales générées et importées
 - [ ] Icône finale validée
 - [ ] Build production iOS généré
 - [ ] Build installé/testé via TestFlight
