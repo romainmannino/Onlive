@@ -3,7 +3,7 @@
     "name": "Onlive",
     "slug": "onlive",
     "scheme": "onlive",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "icon": "./public/logo carre.png",
@@ -13,7 +13,7 @@
       "backgroundColor": "#0A0A0A"
     },
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.romainmannino.onlive",
       "infoPlist": {
         "NSContactsUsageDescription": "Onlive utilise vos contacts pour vous montrer les proches qui utilisent déjà l'application.",
