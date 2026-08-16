@@ -1,0 +1,110 @@
+name: Add Apple review demo mode
+on:
+  push:
+    paths: ['.github/workflows/apple-review-mode.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'Add Apple review demo mode'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch review mode
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          # Root.tsx
+          p=Path('src/Root.tsx'); t=p.read_text()
+          t=t.replace(" const[userId,setUserId]=useState<string|null>(null);"," const[userId,setUserId]=useState<string|null>(null);\n const[reviewMode,setReviewMode]=useState(false);\n const[reviewProgram,setReviewProgram]=useState<{id:string;title:string;channel:string}|null>(null);")
+          t=t.replace("supabase.auth.getSession().then(({data})=>setUserId(data.session?.user.id||null));","supabase.auth.getSession().then(({data})=>{setUserId(data.session?.user.id||null);setReviewMode((data.session?.user.email||'').toLowerCase()==='review@onlive-app.com')});")
+          t=t.replace("const{data:l}=supabase.auth.onAuthStateChange((event,s)=>{setUserId(s?.user.id||null);if(event==='PASSWORD_RECOVERY')setResetOpen(true)});","const{data:l}=supabase.auth.onAuthStateChange((event,s)=>{setUserId(s?.user.id||null);setReviewMode((s?.user.email||'').toLowerCase()==='review@onlive-app.com');if(event==='PASSWORD_RECOVERY')setResetOpen(true)});")
+          old="const startChat=async(target:ChatTarget)=>{if(!userId||!target.programId)return Alert.alert('Discussion indisponible','Tu dois être Onlive sur le même programme que ton proche pour discuter.');"
+          new="const startChat=async(target:ChatTarget)=>{if(reviewMode&&target.userId.startsWith('review-demo-')){setProfileOpenSignal(0);setNotificationRoomId(null);setChatTarget(target);setMode('chat');return}if(!userId||!target.programId)return Alert.alert('Discussion indisponible','Tu dois être Onlive sur le même programme que ton proche pour discuter.');"
+          if old not in t: raise SystemExit('Root startChat anchor missing')
+          t=t.replace(old,new,1)
+          old="if(mode==='chat'&&userId)return<ChatScreen userId={userId} initialTarget={chatTarget} initialRoomId={notificationRoomId} unreadCount={unreadCount} onUnreadChange={setUnreadCount} onBack={goHome} onHome={goHome} onContacts={goContacts} onProfile={openProfile} profileAvatar={navAvatar} profileInitials={navInitials}/>;"
+          new="if(mode==='chat'&&userId)return<ChatScreen userId={userId} initialTarget={chatTarget} initialRoomId={notificationRoomId} unreadCount={unreadCount} onUnreadChange={setUnreadCount} onBack={goHome} onHome={goHome} onContacts={goContacts} onProfile={openProfile} profileAvatar={navAvatar} profileInitials={navInitials} reviewMode={reviewMode} reviewProgram={reviewProgram}/>;"
+          if old not in t: raise SystemExit('Root ChatScreen anchor missing')
+          t=t.replace(old,new,1)
+          old="<MainApp key={userId||'guest'} initialScreen={appSection} onOpenDiscussions={openDiscussions} onStartChat={startChat} onOpenAccount={()=>setAccountOpen(true)} profileOpenSignal={profileOpenSignal} unreadCount={unreadCount}/>"
+          new="<MainApp key={userId||'guest'} initialScreen={appSection} onOpenDiscussions={openDiscussions} onStartChat={startChat} onOpenAccount={()=>setAccountOpen(true)} profileOpenSignal={profileOpenSignal} unreadCount={unreadCount} reviewMode={reviewMode} onReviewProgramChange={setReviewProgram}/>"
+          if old not in t: raise SystemExit('Root MainApp anchor missing')
+          t=t.replace(old,new,1)
+          p.write_text(t)
+
+          # MainApp.tsx
+          p=Path('src/MainApp.tsx'); t=p.read_text()
+          t=t.replace("const PROGRAMS_CACHE_KEY='@onlive/tv-programs-cache';","const PROGRAMS_CACHE_KEY='@onlive/tv-programs-cache';\nconst REVIEW_EMAIL='review@onlive-app.com';\nconst reviewTime=()=>{const d=new Date(Date.now()-10*60000);return`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};\nconst reviewPrograms=()=>FALLBACK_PROGRAMS.slice(0,3).map((p,i)=>({...p,id:`review-program-${i+1}`,time:reviewTime(),isLive:true}));")
+          old="export default function MainApp({onOpenDiscussions,onStartChat,onOpenAccount,profileOpenSignal=0,unreadCount=0,initialScreen='home'}:{onOpenDiscussions?:()=>void;onStartChat?:(target:ChatTarget)=>void;onOpenAccount?:()=>void;profileOpenSignal?:number;unreadCount?:number;initialScreen?:'home'|'contacts'}){"
+          new="export default function MainApp({onOpenDiscussions,onStartChat,onOpenAccount,profileOpenSignal=0,unreadCount=0,initialScreen='home',reviewMode=false,onReviewProgramChange}:{onOpenDiscussions?:()=>void;onStartChat?:(target:ChatTarget)=>void;onOpenAccount?:()=>void;profileOpenSignal?:number;unreadCount?:number;initialScreen?:'home'|'contacts';reviewMode?:boolean;onReviewProgramChange?:(p:{id:string;title:string;channel:string}|null)=>void}){"
+          if old not in t: raise SystemExit('MainApp signature anchor missing')
+          t=t.replace(old,new,1)
+          # Seed demo contacts and programs once review account is active.
+          anchor="  useEffect(()=>{if(profileOpenSignal>0)setProfileOpen(true)},[profileOpenSignal]);"
+          insert=anchor+"\n  useEffect(()=>{if(!reviewMode)return;const demo:Match[]=[{userId:'review-demo-alexandre',name:'Alexandre R.',phone:'+33900000001'},{userId:'review-demo-thomas',name:'Thomas Dupont',phone:'+33900000002'},{userId:'review-demo-papa',name:'Papa',phone:'+33900000003'}];setMatches(demo);if(!programs.length)setPrograms(reviewPrograms())},[reviewMode]);"
+          if anchor not in t: raise SystemExit('MainApp effect anchor missing')
+          t=t.replace(anchor,insert,1)
+          # review account can register without phone
+          t=t.replace("if(!email.trim()||!password.trim()||(authMode==='register'&&!phone.trim()))return Alert.alert('Informations manquantes',authMode==='register'?'Entre ton e-mail, ton numéro et ton mot de passe.':'Entre ton e-mail et ton mot de passe.');","if(!email.trim()||!password.trim()||(authMode==='register'&&!phone.trim()&&email.trim().toLowerCase()!==REVIEW_EMAIL))return Alert.alert('Informations manquantes',authMode==='register'?'Entre ton e-mail, ton numéro et ton mot de passe.':'Entre ton e-mail et ton mot de passe.');")
+          t=t.replace("options:{data:{phone_e164:normalizePhone(phone),display_name:fallbackName}}","options:{data:{phone_e164:email.trim().toLowerCase()===REVIEW_EMAIL?null:normalizePhone(phone),display_name:fallbackName}}")
+          t=t.replace("phone_e164:normalizePhone(phone),updated_at:new Date().toISOString()","phone_e164:email.trim().toLowerCase()===REVIEW_EMAIL?null:normalizePhone(phone),updated_at:new Date().toISOString()")
+          # Review mode bypasses contacts permissions and supplies demo friends.
+          old="  async function autoLoadContacts(){const perm=await Contacts.getPermissionsAsync();if(perm.status==='granted')await loadContacts(true)}"
+          new="  async function autoLoadContacts(){if(reviewMode){const demo:Match[]=[{userId:'review-demo-alexandre',name:'Alexandre R.',phone:'+33900000001'},{userId:'review-demo-thomas',name:'Thomas Dupont',phone:'+33900000002'},{userId:'review-demo-papa',name:'Papa',phone:'+33900000003'}];setMatches(demo);await refreshLiveFriends(demo);return}const perm=await Contacts.getPermissionsAsync();if(perm.status==='granted')await loadContacts(true)}"
+          if old not in t: raise SystemExit('autoLoadContacts anchor missing')
+          t=t.replace(old,new,1)
+          old="  async function refreshLiveFriends(list=matches){if(!list.length){setLiveFriends([]);return}"
+          new="  async function refreshLiveFriends(list=matches){if(reviewMode){if(!selectedProgram){setLiveFriends([]);return}setLiveFriends([{...list[0],programId:selectedProgram.id,program:selectedProgram.title,channel:selectedProgram.channel,since:'depuis 12 min'},{...list[1],programId:selectedProgram.id,program:selectedProgram.title,channel:selectedProgram.channel,since:'depuis 8 min'},{...list[2],programId:selectedProgram.id,program:selectedProgram.title,channel:selectedProgram.channel,since:'depuis 4 min'}]);return}if(!list.length){setLiveFriends([]);return}"
+          if old not in t: raise SystemExit('refreshLiveFriends anchor missing')
+          t=t.replace(old,new,1)
+          old="  async function chooseProgram(program:Program){if(!userId)return;if(programState(program)==='future')return Alert.alert('Programme à venir',`Tu pourras te mettre Onlive à partir de ${program.time}.`);if(selectedProgram?.id===program.id)return goOfflive();"
+          new="  async function chooseProgram(program:Program){if(!userId)return;if(programState(program)==='future')return Alert.alert('Programme à venir',`Tu pourras te mettre Onlive à partir de ${program.time}.`);if(selectedProgram?.id===program.id)return goOfflive();if(reviewMode){setSelectedProgram(program);onReviewProgramChange?.({id:program.id,title:program.title,channel:program.channel});setTimeout(()=>refreshLiveFriends(matches),0);return}"
+          if old not in t: raise SystemExit('chooseProgram anchor missing')
+          t=t.replace(old,new,1)
+          old="  async function goOfflive(){if(userId){"
+          new="  async function goOfflive(){if(reviewMode){setSelectedProgram(null);setLiveFriends([]);onReviewProgramChange?.(null);return}if(userId){"
+          if old not in t: raise SystemExit('goOfflive anchor missing')
+          t=t.replace(old,new,1)
+          # In review mode always make sure there are current programs if real grid is empty/current-less.
+          old="  async function loadPrograms(){let cached:Program[]=[];"
+          new="  async function loadPrograms(){if(reviewMode){try{const data=await fetchTvPrograms();const current=data.filter(p=>programState(p)!=='expired');setPrograms(current.length?current:reviewPrograms());setProgramSource(current.length?'supabase':'fallback');return}catch{setPrograms(reviewPrograms());setProgramSource('fallback');return}}let cached:Program[]=[];"
+          if old not in t: raise SystemExit('loadPrograms anchor missing')
+          t=t.replace(old,new,1)
+          p.write_text(t)
+
+          # ChatScreen.tsx - add isolated local demo chat for review account.
+          p=Path('src/ChatScreen.tsx'); t=p.read_text()
+          old="export default function ChatScreen({userId,initialTarget,initialRoomId,unreadCount,onUnreadChange,onBack,onHome,onContacts,onProfile,profileAvatar,profileInitials}:{userId:string;initialTarget:ChatTarget|null;initialRoomId?:string|null;unreadCount:number;onUnreadChange:(n:number)=>void;onBack:()=>void;onHome:()=>void;onContacts:()=>void;onProfile:()=>void;profileAvatar:string|null;profileInitials:string}){"
+          new="export default function ChatScreen({userId,initialTarget,initialRoomId,unreadCount,onUnreadChange,onBack,onHome,onContacts,onProfile,profileAvatar,profileInitials,reviewMode=false,reviewProgram}:{userId:string;initialTarget:ChatTarget|null;initialRoomId?:string|null;unreadCount:number;onUnreadChange:(n:number)=>void;onBack:()=>void;onHome:()=>void;onContacts:()=>void;onProfile:()=>void;profileAvatar:string|null;profileInitials:string;reviewMode?:boolean;reviewProgram?:{id:string;title:string;channel:string}|null}){\n if(reviewMode)return<ReviewChatScreen initialTarget={initialTarget} reviewProgram={reviewProgram||null} onBack={onBack} onHome={onHome} onContacts={onContacts} onProfile={onProfile} profileAvatar={profileAvatar} profileInitials={profileInitials}/>;"
+          if old not in t: raise SystemExit('ChatScreen signature anchor missing')
+          t=t.replace(old,new,1)
+          marker="function BottomNav({unreadCount,onHome,onContacts,onProfile,profileAvatar,profileInitials}:"
+          idx=t.find(marker)
+          if idx<0: raise SystemExit('BottomNav marker missing')
+          demo=r'''function ReviewChatScreen({initialTarget,reviewProgram,onBack,onHome,onContacts,onProfile,profileAvatar,profileInitials}:{initialTarget:ChatTarget|null;reviewProgram:{id:string;title:string;channel:string}|null;onBack:()=>void;onHome:()=>void;onContacts:()=>void;onProfile:()=>void;profileAvatar:string|null;profileInitials:string}){
+ const[room,setRoom]=useState<string|null>(initialTarget?.userId||null),[text,setText]=useState('');
+ const[messages,setMessages]=useState<Record<string,{mine:boolean;body:string;time:string}[]>>({
+  'review-demo-alexandre':[{mine:false,body:'Alors prêt pour le programme ? 👀',time:'20h50'},{mine:true,body:'Oui ! On regarde ça ensemble 😄',time:'20h52'}],
+  'review-demo-thomas':[{mine:false,body:'Tu as vu ce passage ? 😮',time:'21h12'}],
+  'review-demo-group':[{mine:false,body:'On est tous là 🔥',time:'21h20'}]
+ });
+ const program=reviewProgram||{id:'review',title:'Programme de démonstration',channel:'Onlive'};
+ const rooms=[{id:'review-demo-alexandre',label:'Moi, Alexandre R.',preview:'Oui ! On regarde ça ensemble 😄'},{id:'review-demo-thomas',label:'Moi, Thomas Dupont',preview:'Tu as vu ce passage ? 😮'},{id:'review-demo-group',label:'Moi, Papa, Kevin, Ludo',preview:'On est tous là 🔥'}];
+ const send=()=>{const body=text.trim();if(!body||!room)return;const d=new Date(),time=`${String(d.getHours()).padStart(2,'0')}h${String(d.getMinutes()).padStart(2,'0')}`;setMessages(v=>({...v,[room]:[...(v[room]||[]),{mine:true,body,time}]}));setText('')};
+ if(!reviewProgram)return<SafeAreaView style={s.screen}><View style={s.head}><TouchableOpacity onPress={onBack} style={s.round}><Ionicons name="chevron-back" size={23}/></TouchableOpacity><Text style={s.title}>Discussions</Text><View style={{width:42}}/></View><Text style={s.currentProgramOff}>Sélectionne d’abord un programme depuis l’Accueil.</Text><BottomNav unreadCount={0} onHome={onHome} onContacts={onContacts} onProfile={onProfile} profileAvatar={profileAvatar} profileInitials={profileInitials}/></SafeAreaView>;
+ if(!room)return<SafeAreaView style={s.screen}><View style={s.head}><TouchableOpacity onPress={onBack} style={s.round}><Ionicons name="chevron-back" size={23}/></TouchableOpacity><Text style={s.title}>Discussions</Text><View style={{width:42}}/></View><View style={s.currentProgramBlock}><Text numberOfLines={1} style={s.currentProgram}>{program.title}</Text><Text style={s.currentChannel}>{program.channel}</Text></View><FlatList data={rooms} keyExtractor={r=>r.id} contentContainerStyle={s.list} renderItem={({item})=><TouchableOpacity onPress={()=>setRoom(item.id)} style={s.room}><View style={{flex:1,minWidth:0}}><Text numberOfLines={1} style={s.people}>{item.label}</Text><Text numberOfLines={1} style={s.preview}>{item.preview}</Text></View><Text style={s.roomTime}>21h20</Text><Ionicons name="chevron-forward" size={17} color="#c0c0c5"/></TouchableOpacity>}/><BottomNav unreadCount={0} onHome={onHome} onContacts={onContacts} onProfile={onProfile} profileAvatar={profileAvatar} profileInitials={profileInitials}/></SafeAreaView>;
+ const label=room==='review-demo-alexandre'?'Moi, Alexandre R.':room==='review-demo-thomas'?'Moi, Thomas Dupont':'Moi, Papa, Kevin, Ludo';
+ return<SafeAreaView style={s.screen}><KeyboardAvoidingView style={s.chatLayout} behavior={Platform.OS==='ios'?'padding':'height'}><View style={s.head}><TouchableOpacity onPress={()=>setRoom(null)} style={s.round}><Ionicons name="chevron-back" size={23}/></TouchableOpacity><View style={s.chatHeadText}><Text numberOfLines={1} style={s.chatTitle}>{program.title}</Text><Text numberOfLines={1} style={s.chatSub}>{label}</Text></View><View style={{width:42}}/></View><FlatList data={messages[room]||[]} keyExtractor={(_,i)=>String(i)} style={s.messageList} contentContainerStyle={s.messages} renderItem={({item})=><View style={[s.wrap,item.mine&&{alignItems:'flex-end'}]}><Text style={s.sender}>{item.mine?'Moi':room==='review-demo-alexandre'?'Alexandre R.':room==='review-demo-thomas'?'Thomas Dupont':'Participant'}</Text><View style={[s.bubble,item.mine&&s.mine]}><View style={s.bubbleContent}><Text style={[s.body,item.mine&&{color:'#fff'}]}>{item.body}</Text><Text style={[s.messageTime,item.mine&&s.messageTimeMine]}>{item.time}</Text></View></View></View>}/><View style={s.composer}><TextInput value={text} onChangeText={setText} placeholder="Message…" style={s.input} multiline/><TouchableOpacity onPress={send}><LinearGradient colors={['#4932ff','#ed00b3']} style={s.send}><Ionicons name="arrow-up" size={20} color="#fff"/></LinearGradient></TouchableOpacity></View></KeyboardAvoidingView></SafeAreaView>
+}
+'''
+          t=t[:idx]+demo+t[idx:]
+          p.write_text(t)
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name onlive-bot
+          git config user.email actions@users.noreply.github.com
+          git add src/Root.tsx src/MainApp.tsx src/ChatScreen.tsx
+          git commit -m "Add isolated Apple review demo experience"
+          git push
