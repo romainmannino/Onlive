@@ -1,0 +1,57 @@
+name: Fix discussions chat and program loading UX
+on:
+  push:
+    paths: ['.github/workflows/fix-discussions-chat-programs.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch app
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          # --- ChatScreen ---
+          p=Path('src/ChatScreen.tsx')
+          t=p.read_text()
+          t=t.replace("[currentProgram,setCurrentProgram]=useState<{id:string;title:string}|null>(null)","[currentProgram,setCurrentProgram]=useState<{id:string;title:string;channel:string}|null>(null)")
+          t=t.replace("select('is_live,program_id,tv_programs(title)')","select('is_live,program_id,tv_programs(title,channel)')")
+          t=t.replace("const title=(status as any)?.tv_programs?.title||'';setCurrentProgram(programId?{id:String(programId),title}:null);","const title=(status as any)?.tv_programs?.title||'',channel=(status as any)?.tv_programs?.channel||'';setCurrentProgram(programId?{id:String(programId),title,channel}:null);")
+          old="{currentProgram?<Text numberOfLines={1} ellipsizeMode=\"tail\" style={s.currentProgram}>{currentProgram.title}</Text>:<Text style={s.currentProgramOff}>Passe Onlive sur un programme pour voir ses discussions.</Text>}"
+          new="{currentProgram?<View style={s.currentProgramBlock}><Text numberOfLines={1} ellipsizeMode=\"tail\" style={s.currentProgram}>{currentProgram.title}</Text><Text numberOfLines={1} ellipsizeMode=\"tail\" style={s.currentChannel}>{currentProgram.channel}</Text></View>:<Text style={s.currentProgramOff}>Sélectionne un programme depuis l’Accueil pour voir ses discussions.</Text>}"
+          if old not in t: raise SystemExit('currentProgram render anchor missing')
+          t=t.replace(old,new,1)
+          oldstyle="currentProgram:{fontSize:14,color:'#555',fontWeight:'400',marginHorizontal:18,marginTop:-2,marginBottom:8},currentProgramOff:{fontSize:13,color:'#888',fontWeight:'400',marginHorizontal:18,marginTop:-2,marginBottom:8}"
+          newstyle="currentProgramBlock:{marginHorizontal:18,marginTop:-2,marginBottom:8},currentProgram:{fontSize:15,color:'#6b2cff',fontWeight:'800'},currentChannel:{fontSize:12,color:'#888',fontWeight:'400',marginTop:2},currentProgramOff:{fontSize:13,color:'#888',fontWeight:'400',marginHorizontal:18,marginTop:-2,marginBottom:8}"
+          if oldstyle not in t: raise SystemExit('currentProgram style anchor missing')
+          t=t.replace(oldstyle,newstyle,1)
+          oldbubble="bubbleContent:{flexDirection:'row',alignItems:'flex-end',flexWrap:'wrap'},body:{fontSize:15,flexShrink:1},messageTime:{fontSize:9,color:'#999',marginLeft:8,marginTop:4},messageTimeMine:{color:'rgba(255,255,255,.72)'}"
+          newbubble="bubbleContent:{maxWidth:'100%'},body:{fontSize:15,flexShrink:1},messageTime:{fontSize:9,color:'#999',alignSelf:'flex-end',marginTop:4,marginLeft:8},messageTimeMine:{color:'rgba(255,255,255,.72)'}"
+          if oldbubble not in t: raise SystemExit('bubble style anchor missing')
+          t=t.replace(oldbubble,newbubble,1)
+          p.write_text(t)
+
+          # --- MainApp: never flash fallback programs before real data arrives ---
+          p=Path('src/MainApp.tsx')
+          t=p.read_text()
+          t=t.replace("const SCORE_KEY='@onlive/contact-scores';","const SCORE_KEY='@onlive/contact-scores';\nconst PROGRAMS_CACHE_KEY='@onlive/tv-programs-cache';")
+          old="const[programs,setPrograms]=useState<Program[]>(FALLBACK_PROGRAMS);const[programSource,setProgramSource]=useState<'fallback'|'supabase'>('fallback');"
+          new="const[programs,setPrograms]=useState<Program[]>([]);const[programSource,setProgramSource]=useState<'fallback'|'supabase'>('supabase');"
+          if old not in t: raise SystemExit('program state anchor missing')
+          t=t.replace(old,new,1)
+          oldload="async function loadPrograms(){try{const data=await fetchTvPrograms();if(data.length){setPrograms(data);setProgramSource('supabase')}else{setPrograms(FALLBACK_PROGRAMS);setProgramSource('fallback')}}catch{setPrograms(FALLBACK_PROGRAMS);setProgramSource('fallback')}}"
+          newload="async function loadPrograms(){let cached:Program[]=[];try{const raw=await AsyncStorage.getItem(PROGRAMS_CACHE_KEY);if(raw){cached=JSON.parse(raw);if(Array.isArray(cached)&&cached.length){setPrograms(cached);setProgramSource('supabase')}}}catch{}try{const data=await fetchTvPrograms();if(data.length){setPrograms(data);setProgramSource('supabase');AsyncStorage.setItem(PROGRAMS_CACHE_KEY,JSON.stringify(data)).catch(()=>{})}else if(!cached.length){setPrograms(FALLBACK_PROGRAMS);setProgramSource('fallback')}}catch{if(!cached.length){setPrograms(FALLBACK_PROGRAMS);setProgramSource('fallback')}}}"
+          if oldload not in t: raise SystemExit('loadPrograms anchor missing')
+          t=t.replace(oldload,newload,1)
+          p.write_text(t)
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name onlive-bot
+          git config user.email actions@users.noreply.github.com
+          git add src/ChatScreen.tsx src/MainApp.tsx
+          git commit -m "Polish discussions and stabilize TV program loading"
+          git push
