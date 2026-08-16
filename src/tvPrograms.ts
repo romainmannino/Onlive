@@ -20,9 +20,10 @@ const CATEGORY_FALLBACKS: Record<ProgramCategory,string> = {
   Foot:'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?auto=format&fit=crop&w=900&q=85',
 };
 
-// Only keep URLs here that have proven stable in the native app.
-// More artwork is now resolved/cached server-side by resolve-program-images.
+// Curated Onlive library. These entries have priority over feed/API artwork so
+// recurring flagship programmes always keep a recognisable, stable visual.
 const PROGRAM_IMAGE_RULES: Array<{match:RegExp,image:string}> = [
+  {match:/^capital\b/i,image:'https://actu.m6.fr/wp-content/uploads/2026/05/MEA_2732x1538_CAPITAL_CAMP.jpg'},
   {match:/\bune famille en or\b/i,image:'https://tf1pro.com/sites/default/files/styles/fiches/public/media-import/Famille%20en%20or%20Ruquier%20Bernier.jpg?itok=AMIwCdSl'},
 ];
 
