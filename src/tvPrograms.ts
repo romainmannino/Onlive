@@ -14,19 +14,26 @@ export type Program = {
 
 const CATEGORY_FALLBACKS: Record<ProgramCategory,string> = {
   Divertissement:'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=900&q=85',
-  Film:'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=900&q=85',
+  Film:'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=900&q=85',
   Série:'https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?auto=format&fit=crop&w=900&q=85',
   Sport:'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=900&q=85',
   Foot:'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?auto=format&fit=crop&w=900&q=85',
 };
 
+// Only keep URLs here that have proven stable in the native app.
+// More artwork is now resolved/cached server-side by resolve-program-images.
 const PROGRAM_IMAGE_RULES: Array<{match:RegExp,image:string}> = [
-  {match:/\bkoh[- ]?lanta\b/i,image:'https://bocir-medias-prod.s3.fr-par.scw.cloud/medias/yfVRs1H2l6/image/Koh_lanta_261772557016612-format16by9.jpg'},
-  {match:/\bthe voice kids\b/i,image:'https://photos.tf1info.fr/images/700/700/the-voice-kids-2025-affiche-c6635f-0@1x.jpeg'},
-  {match:/\bthe voice\b/i,image:'https://photos.tf1info.fr/images/700/700/the-voice-2026-affiche-a618af-0@1x.jpeg'},
-  {match:/\bcapital\b/i,image:'https://images-fio.6play.fr/v2/images/4992968/raw?blur=0&fit=scale_crop&format=auto&hash=88e1b3758715dabbffccb938f72093b6876e9f5a&height=900&interlace=1&optimize=high&width=900'},
-  {match:/\bzone interdite\b/i,image:'https://images-fio.6play.fr/v2/images/4991130/raw?blur=0&fit=scale_crop&format=auto&hash=30003f0dd51db9cd451db6d1e52357f7648fd1a2&height=900&interlace=1&optimize=high&width=900'},
   {match:/\bune famille en or\b/i,image:'https://tf1pro.com/sites/default/files/styles/fiches/public/media-import/Famille%20en%20or%20Ruquier%20Bernier.jpg?itok=AMIwCdSl'},
+];
+
+const GENERIC_IMAGE_MARKERS = [
+  'images.unsplash.com/photo-1579952363873-27f3bade9f55',
+  'images.unsplash.com/photo-1461896836934-ffe607ba8211',
+  'images.unsplash.com/photo-1530137073520-4ea6e2f10a48',
+  'images.unsplash.com/photo-1485846234645-a62644f84728',
+  'images.unsplash.com/photo-1522869635100-9f4c5e86aa37',
+  'images.unsplash.com/photo-1500530855697-b586d89ba3ee',
+  'images.unsplash.com/photo-1489599849927-2ee91cede3ba',
 ];
 
 function cleanTitle(value=''){
@@ -35,6 +42,10 @@ function cleanTitle(value=''){
     .replace(/[’']/g,"'")
     .replace(/\s+/g,' ')
     .trim();
+}
+
+function isGenericImage(image?:string|null){
+  return !image || GENERIC_IMAGE_MARKERS.some(marker=>image.includes(marker));
 }
 
 export function resolveProgramImage(title:string,category:ProgramCategory,image?:string|null){
@@ -66,15 +77,38 @@ export async function fetchTvPrograms(date = parisDate()): Promise<Program[]> {
     .order('start_time', { ascending: true });
 
   if (error) throw error;
-  return (data || []).map((row:any) => {
+  const rows:any[] = data || [];
+
+  // Ask the server-side resolver only for missing/generic artwork. It caches the
+  // result and also writes it back to tv_programs, so subsequent loads are fast.
+  const needsArtwork = rows.filter(row=>isGenericImage(row.image_url));
+  const resolvedById = new Map<string,string>();
+  if (needsArtwork.length) {
+    try {
+      const { data: resolved } = await supabase.functions.invoke('resolve-program-images', {
+        body: { programs: needsArtwork.map(row=>({
+          id:String(row.id), title:row.title, channel:row.channel,
+          category:row.category, image_url:row.image_url,
+        })) }
+      });
+      for (const item of resolved?.results || []) {
+        if (item?.id && item?.image_url) resolvedById.set(String(item.id), item.image_url);
+      }
+    } catch (e) {
+      console.warn('Program image resolver unavailable, using local fallback', e);
+    }
+  }
+
+  return rows.map((row:any) => {
     const category=row.category as ProgramCategory;
+    const serverImage=resolvedById.get(String(row.id));
     return {
       id: String(row.id),
       title: row.title,
       channel: row.channel,
       category,
       time: String(row.start_time).slice(0,5),
-      image: resolveProgramImage(row.title,category,row.image_url),
+      image: resolveProgramImage(row.title,category,serverImage || row.image_url),
       isLive: Boolean(row.is_live),
     };
   });
