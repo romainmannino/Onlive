@@ -1,0 +1,33 @@
+name: Fix review stability and confirmation
+on:
+  push:
+    paths: ['.github/workflows/fix-review-confirmation.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch app
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('src/MainApp.tsx')
+          t=p.read_text()
+          old="if(reviewMode){setSelectedProgram(program);onReviewProgramChange?.({id:program.id,title:program.title,channel:program.channel});setTimeout(()=>refreshLiveFriends(matches),0);return}"
+          new="if(reviewMode){const demo=matches.length?matches:[{userId:'review-demo-alexandre',name:'Alexandre R.',phone:'+33900000001'},{userId:'review-demo-thomas',name:'Thomas Dupont',phone:'+33900000002'},{userId:'review-demo-papa',name:'Papa',phone:'+33900000003'}];setSelectedProgram(program);onReviewProgramChange?.({id:program.id,title:program.title,channel:program.channel});setLiveFriends([{...demo[0],programId:program.id,program:program.title,channel:program.channel,since:'depuis 12 min'},{...demo[1],programId:program.id,program:program.title,channel:program.channel,since:'depuis 8 min'},{...demo[2],programId:program.id,program:program.title,channel:program.channel,since:'depuis 4 min'}]);return}"
+          if old in t:t=t.replace(old,new,1)
+          else: print('review chooseProgram anchor already changed or not found')
+          old2="options:{data:{phone_e164:email.trim().toLowerCase()===REVIEW_EMAIL?null:normalizePhone(phone),display_name:fallbackName}}"
+          new2="options:{emailRedirectTo:'https://onlive-app.com/email-confirmed.html',data:{phone_e164:email.trim().toLowerCase()===REVIEW_EMAIL?null:normalizePhone(phone),display_name:fallbackName}}"
+          if old2 in t:t=t.replace(old2,new2,1)
+          else: print('signup options anchor already changed or not found')
+          p.write_text(t)
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Stabilize Apple review demo and confirmation redirect"
+          git push
