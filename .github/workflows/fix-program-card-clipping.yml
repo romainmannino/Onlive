@@ -1,0 +1,35 @@
+name: Fix program card clipping
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-program-card-clipping.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'Apply program card clipping fix'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fix unselected program card inset
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/MainApp.tsx')
+          t = p.read_text()
+          old = "programCard:{width:170,height:215,borderRadius:20,overflow:'hidden',backgroundColor:'#222',borderWidth:3,borderColor:'transparent'},programCardSelected:{borderColor:'#ed00b3'}"
+          new = "programCard:{width:170,height:215,borderRadius:20,overflow:'hidden',backgroundColor:'#222',borderWidth:0},programCardSelected:{borderWidth:3,borderColor:'#ed00b3'}"
+          if old not in t:
+              raise SystemExit('program card style anchor not found')
+          p.write_text(t.replace(old, new, 1))
+          PY
+      - name: Commit fix
+        run: |
+          git config user.name "onlive-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/MainApp.tsx
+          git commit -m "Fix rounded clipping on program cards"
+          git push
