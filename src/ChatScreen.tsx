@@ -5,6 +5,7 @@ import{LinearGradient}from'expo-linear-gradient';
 import*as Contacts from'expo-contacts';
 import{supabase}from'./supabase';
 import{pushChatInvite}from'./notifications';
+import ReviewChatScreen from'./ReviewChatScreen';
 
 type KnownPerson={userId:string;name:string;image?:string};
 type ChatTarget={userId:string;name:string;programId:string|null;programTitle:string;channel:string};
@@ -14,7 +15,8 @@ const normalizePhone=(value='')=>{let p=value.replace(/[^\d+]/g,'');if(p.startsW
 const messageTime=(value:string|null)=>{if(!value)return'';const d=new Date(value);return d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}).replace(':','h')};
 const activityTime=(value:string|null)=>{if(!value)return'';const d=new Date(value),now=new Date();const start=new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime(),day=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();if(day===start)return messageTime(value);if(day===start-86400000)return'Hier';return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})};
 
-export default function ChatScreen({userId,initialTarget,initialRoomId,unreadCount,onUnreadChange,onBack,onHome,onContacts,onProfile,profileAvatar,profileInitials}:{userId:string;initialTarget:ChatTarget|null;initialRoomId?:string|null;unreadCount:number;onUnreadChange:(n:number)=>void;onBack:()=>void;onHome:()=>void;onContacts:()=>void;onProfile:()=>void;profileAvatar:string|null;profileInitials:string}){
+export default function ChatScreen({userId,initialTarget,initialRoomId,unreadCount,onUnreadChange,onBack,onHome,onContacts,onProfile,profileAvatar,profileInitials,reviewMode=false,reviewProgram}:{userId:string;initialTarget:ChatTarget|null;initialRoomId?:string|null;unreadCount:number;onUnreadChange:(n:number)=>void;onBack:()=>void;onHome:()=>void;onContacts:()=>void;onProfile:()=>void;profileAvatar:string|null;profileInitials:string;reviewMode?:boolean;reviewProgram?:{id:string;title:string;channel:string}|null}){
+ if(reviewMode)return<ReviewChatScreen initialTarget={initialTarget} reviewProgram={reviewProgram||null} onBack={onBack} onHome={onHome} onContacts={onContacts} onProfile={onProfile} profileAvatar={profileAvatar} profileInitials={profileInitials}/>;
  const[rooms,setRooms]=useState<Room[]>([]),[roomId,setRoomId]=useState<string|null>(initialRoomId||null),[messages,setMessages]=useState<Msg[]>([]),[text,setText]=useState(''),[inviteOpen,setInviteOpen]=useState(false),[knownPeople,setKnownPeople]=useState<KnownPerson[]>([]),[currentProgram,setCurrentProgram]=useState<{id:string;title:string;channel:string}|null>(null);
  const startedRef=useRef(false);const listRef=useRef<FlatList<Msg>>(null);
  const names=useMemo(()=>new Map(knownPeople.map(p=>[p.userId,p.name])),[knownPeople]);
