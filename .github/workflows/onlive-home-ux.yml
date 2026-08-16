@@ -1,0 +1,52 @@
+name: Onlive home UX redesign
+on:
+  push:
+    paths: ['.github/workflows/onlive-home-ux.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'Apply Onlive home UX redesign'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch MainApp
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('src/MainApp.tsx'); t=p.read_text()
+          # Selected program first, otherwise preserve normal ordering.
+          old="const visiblePrograms=useMemo(()=>programs.filter(p=>programState(p,now)!=='expired').filter(p=>{if(filter==='Tous')return true;if(filter==='Sport'){const isSport=p.category==='Sport'||p.category==='Foot';return isSport&&(sportFilter==='Tous'||sportType(p)===sportFilter)}return p.category===filter}),[filter,sportFilter,programs,now]);"
+          new="const visiblePrograms=useMemo(()=>{const list=programs.filter(p=>programState(p,now)!=='expired').filter(p=>{if(filter==='Tous')return true;if(filter==='Sport'){const isSport=p.category==='Sport'||p.category==='Foot';return isSport&&(sportFilter==='Tous'||sportType(p)===sportFilter)}return p.category===filter});if(!selectedProgram)return list;return [...list].sort((a,b)=>a.id===selectedProgram.id?-1:b.id===selectedProgram.id?1:0)},[filter,sportFilter,programs,now,selectedProgram]);"
+          if old not in t: raise SystemExit('visiblePrograms anchor missing')
+          t=t.replace(old,new,1)
+          # Remove top ONLIVE/OFFLIVE status block while retaining layout container.
+          import re
+          t,n=re.subn(r"<View style=\{s\.headerCard\}>.*?</View>\s*(?=<Text style=\{s\.introTitle\}>)","<View style={s.headerCard}/>",t,count=1,flags=re.S)
+          if n!=1: raise SystemExit('header status block anchor missing')
+          # Rename section.
+          t=t.replace("Tes proches Onlive","Que regardent tes proches ?")
+          # Selected gradient border: wrap card content in gradient only when selected.
+          # Styles: selected card gets gradient background + padding; inner content clips cleanly.
+          oldstyle="programCard:{width:170,height:215,borderRadius:20,overflow:'hidden',backgroundColor:'#222',borderWidth:0},programCardSelected:{borderWidth:3,borderColor:'#ed00b3'}"
+          newstyle="programCard:{width:170,height:215,borderRadius:20,overflow:'hidden',backgroundColor:'#222',borderWidth:0},programCardSelected:{padding:3,backgroundColor:'transparent'},programCardInner:{flex:1,borderRadius:17,overflow:'hidden',backgroundColor:'#222'}"
+          if oldstyle not in t: raise SystemExit('program style anchor missing')
+          t=t.replace(oldstyle,newstyle,1)
+          # Find card render and insert gradient wrapper using existing LinearGradient.
+          # Existing card uses TouchableOpacity with selected style. Replace selected styling by an outer gradient.
+          pattern=r"(<TouchableOpacity[^>]*style=\{\[s\.programCard,selectedProgram\?\.id===p\.id&&s\.programCardSelected[^\]]*\]\}[^>]*>)(.*?)(</TouchableOpacity>)"
+          m=re.search(pattern,t,re.S)
+          if not m: raise SystemExit('program card render anchor missing')
+          opening,body,closing=m.groups()
+          opening=opening.replace("style={[s.programCard,selectedProgram?.id===p.id&&s.programCardSelected]}","style={[s.programCard,selectedProgram?.id===p.id&&s.programCardSelected]}")
+          wrapped="{selectedProgram?.id===p.id?<LinearGradient colors={['#315CFF','#F000B8']} start={{x:0,y:0}} end={{x:1,y:1}} style={StyleSheet.absoluteFillObject}/>:null}<View style={s.programCardInner}>"+body+"</View>"
+          t=t[:m.start()]+opening+wrapped+closing+t[m.end():]
+          p.write_text(t)
+          PY
+      - name: Commit
+        run: |
+          git config user.name onlive-bot
+          git config user.email actions@users.noreply.github.com
+          git add src/MainApp.tsx
+          git commit -m "Simplify TV status and improve home presence UX"
+          git push
