@@ -59,11 +59,11 @@ export default function MainApp({onOpenDiscussions,onStartChat,onOpenAccount,pro
   useEffect(()=>{if(profileOpenSignal>0)setProfileOpen(true)},[profileOpenSignal]);
   useEffect(()=>{if(!reviewMode)return;const demo:Match[]=[{userId:'review-demo-alexandre',name:'Alexandre R.',phone:'+33900000001'},{userId:'review-demo-thomas',name:'Thomas Dupont',phone:'+33900000002'},{userId:'review-demo-papa',name:'Papa',phone:'+33900000003'}];setMatches(demo);if(!programs.length)setPrograms(reviewPrograms())},[reviewMode]);
   useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),30000);return()=>clearInterval(timer)},[]);
-  useEffect(()=>{if(screen!=='home'||!matches.length)return;refreshLiveFriends(matches);const timer=setInterval(()=>refreshLiveFriends(matches),3000);return()=>clearInterval(timer)},[screen,matches]);
+  useEffect(()=>{if(screen!=='home'||!matches.length)return;if(reviewMode){refreshLiveFriends(matches);return}refreshLiveFriends(matches);const timer=setInterval(()=>refreshLiveFriends(matches),3000);return()=>clearInterval(timer)},[screen,matches,selectedProgram,reviewMode]);
   useEffect(()=>{if(!userId||screen!=='home')return;checkProgramNotifications();const timer=setInterval(checkProgramNotifications,3000);return()=>clearInterval(timer)},[userId,screen,matches]);
 
   useEffect(()=>{
-    if(!userId||screen==='auth')return;
+    if(!userId||screen==='auth'||reviewMode)return;
     let refreshing=false;
     const refresh=async()=>{
       if(refreshing)return;
