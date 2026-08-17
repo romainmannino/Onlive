@@ -45,15 +45,14 @@ jobs:
 
           p = Path('src/MainApp.tsx')
           s = p.read_text()
-          # Tablet center pane needs slightly denser cards to mirror the approved App Store composition.
           s = s.replace("programCard:{width:170,height:215", "programCard:{width:158,height:205")
           s = s.replace("homeContent:{padding:14,paddingBottom:100}", "homeContent:{padding:14,paddingBottom:92}")
           p.write_text(s)
           PY
 
-      - name: Type check
+      - name: Install dependencies and type check
         run: |
-          npm ci
+          npm install
           npx tsc --noEmit || true
 
       - name: Commit hardened iPad layout
