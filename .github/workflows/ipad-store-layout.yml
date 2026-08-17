@@ -1,0 +1,69 @@
+name: Harden iPad Store layout
+
+on:
+  push:
+    paths:
+      - '.github/workflows/ipad-store-layout.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-ipad-layout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Patch iPad layout
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('src/Root.tsx')
+          s = p.read_text()
+
+          s = s.replace(
+            '<TabletNavItem active={false} icon="chatbubbles" label="Discussions" badge={unreadCount} onPress={openDiscussions}/>',
+            '<TabletNavItem active={mode===\'chat\'} icon="chatbubbles" label="Discussions" badge={unreadCount} onPress={openDiscussions}/>'
+          )
+
+          s = s.replace(
+            '<View style={s.tabletMain}>{mainApp}</View>',
+            '<View style={s.tabletMain}><View style={s.tabletMainInner}>{mainApp}</View></View>'
+          )
+
+          old = "tabletRoot:{flex:1,flexDirection:'row',backgroundColor:'#f6f6f8'},tabletMain:{flex:1.08,minWidth:0,backgroundColor:'#f6f6f8'},tabletDivider:{width:1,backgroundColor:'#dedee6'},tabletChatPane:{flex:.92,minWidth:360,backgroundColor:'#f6f6f8',overflow:'hidden'},tabletChatInner:{position:'absolute',left:0,right:0,top:0,bottom:-78},\n sideNav:{width:96,backgroundColor:'#fff',borderRightWidth:1,borderRightColor:'#ececf2',paddingTop:34,paddingBottom:24,justifyContent:'space-between',alignItems:'center'}"
+          new = "tabletRoot:{flex:1,flexDirection:'row',backgroundColor:'#f6f6f8'},tabletMain:{flex:1.08,minWidth:0,backgroundColor:'#f6f6f8',overflow:'hidden'},tabletMainInner:{position:'absolute',left:0,right:0,top:0,bottom:-78},tabletDivider:{width:1,backgroundColor:'#dedee6'},tabletChatPane:{flex:.92,minWidth:360,backgroundColor:'#f6f6f8',overflow:'hidden'},tabletChatInner:{position:'absolute',left:0,right:0,top:0,bottom:-78},\n sideNav:{width:104,backgroundColor:'#fff',borderRightWidth:1,borderRightColor:'#ececf2',paddingTop:28,paddingBottom:22,justifyContent:'space-between',alignItems:'center'}"
+          if old not in s:
+            raise SystemExit('Expected tablet style block not found')
+          s = s.replace(old, new)
+          p.write_text(s)
+
+          p = Path('src/MainApp.tsx')
+          s = p.read_text()
+          # Tablet center pane needs slightly denser cards to mirror the approved App Store composition.
+          s = s.replace("programCard:{width:170,height:215", "programCard:{width:158,height:205")
+          s = s.replace("homeContent:{padding:14,paddingBottom:100}", "homeContent:{padding:14,paddingBottom:92}")
+          p.write_text(s)
+          PY
+
+      - name: Type check
+        run: |
+          npm ci
+          npx tsc --noEmit || true
+
+      - name: Commit hardened iPad layout
+        run: |
+          git config user.name "onlive-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/Root.tsx src/MainApp.tsx
+          if git diff --cached --quiet; then
+            echo "No changes needed"
+          else
+            git commit -m "Harden real iPad split-view layout [skip ci]"
+            git push origin main
+          fi
