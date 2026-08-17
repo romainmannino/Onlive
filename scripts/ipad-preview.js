@@ -22,8 +22,21 @@ function restore() {
   }
 }
 
+// If a previous preview was interrupted, the landing can remain in the backup file.
+// Recover it automatically before starting a new preview.
+if (!fs.existsSync(publicIndex) && fs.existsSync(backupIndex)) {
+  try {
+    fs.copyFileSync(backupIndex, publicIndex);
+    fs.unlinkSync(backupIndex);
+    console.log('✓ Ancienne session iPad détectée : landing restaurée automatiquement.');
+  } catch (error) {
+    console.error('Impossible de récupérer la landing précédente:', error.message);
+    process.exit(1);
+  }
+}
+
 if (!fs.existsSync(publicIndex)) {
-  console.error('public/index.html introuvable. Abandon.');
+  console.error('public/index.html introuvable et aucune sauvegarde iPad disponible. Abandon.');
   process.exit(1);
 }
 
