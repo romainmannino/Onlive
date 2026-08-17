@@ -1,0 +1,63 @@
+name: iPad polish pass
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ipad-polish-pass.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  polish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Patch tablet layout
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('src/MainApp.tsx')
+          s = p.read_text()
+          s = s.replace("import{Alert,FlatList,Image,Modal,SafeAreaView,ScrollView,Share,StyleSheet,Text,TextInput,TouchableOpacity,View}from'react-native';", "import{Alert,FlatList,Image,Modal,SafeAreaView,ScrollView,Share,StyleSheet,Text,TextInput,TouchableOpacity,View,useWindowDimensions}from'react-native';")
+          marker = "export default function MainApp({onOpenDiscussions,onStartChat,onOpenAccount,profileOpenSignal=0,unreadCount=0,initialScreen='home',reviewMode=false,onReviewProgramChange}:{onOpenDiscussions?:()=>void;onStartChat?:(target:ChatTarget)=>void;onOpenAccount?:()=>void;profileOpenSignal?:number;unreadCount?:number;initialScreen?:'home'|'contacts';reviewMode?:boolean;onReviewProgramChange?:(p:{id:string;title:string;channel:string}|null)=>void}){\n"
+          if marker in s and "const{width}=useWindowDimensions();" not in s:
+              s = s.replace(marker, marker + "  const{width}=useWindowDimensions();\n  const tabletLayout=width>=768;\n")
+          s = s.replace("<ScrollView contentContainerStyle={s.homeContent}>", "<ScrollView contentContainerStyle={[s.homeContent,tabletLayout&&s.homeContentTablet]}>")
+          s = s.replace("contentContainerStyle={s.programList} renderItem", "contentContainerStyle={[s.programList,tabletLayout&&s.programListTablet]} renderItem")
+          s = s.replace("style={[s.programCard,selected&&s.programCardSelected,state==='future'&&s.programCardFuture]}", "style={[s.programCard,tabletLayout&&s.programCardTablet,selected&&s.programCardSelected,state==='future'&&s.programCardFuture]}")
+          style_anchor = "screen:{flex:1,backgroundColor:'#f6f6f8'},homeContent:{padding:14,paddingBottom:92},"
+          if style_anchor in s and "homeContentTablet:" not in s:
+              s = s.replace(style_anchor, "screen:{flex:1,backgroundColor:'#f6f6f8'},homeContent:{padding:14,paddingBottom:92},homeContentTablet:{paddingHorizontal:18,paddingTop:8,paddingBottom:92},")
+          style_anchor2 = "programList:{gap:12,paddingBottom:12},programCard:{width:158,height:205,borderRadius:20,overflow:'hidden',backgroundColor:'#222',borderWidth:0},"
+          if style_anchor2 in s and "programCardTablet:" not in s:
+              s = s.replace(style_anchor2, "programList:{gap:12,paddingBottom:12},programListTablet:{gap:10,paddingTop:2,paddingBottom:8},programCard:{width:158,height:205,borderRadius:20,overflow:'hidden',backgroundColor:'#222',borderWidth:0},programCardTablet:{width:142,height:188,borderRadius:18},")
+          p.write_text(s)
+
+          p = Path('src/Root.tsx')
+          s = p.read_text()
+          old = "tabletRoot:{flex:1,flexDirection:'row',backgroundColor:'#f6f6f8'},tabletMain:{flex:1.08,minWidth:0,backgroundColor:'#f6f6f8',overflow:'hidden'},tabletMainInner:{position:'absolute',left:0,right:0,top:0,bottom:-78},tabletDivider:{width:1,backgroundColor:'#dedee6'},tabletChatPane:{flex:.92,minWidth:360,backgroundColor:'#f6f6f8',overflow:'hidden'},tabletChatInner:{position:'absolute',left:0,right:0,top:0,bottom:-78},"
+          new = "tabletRoot:{flex:1,flexDirection:'row',backgroundColor:'#f6f6f8'},tabletMain:{flex:1.18,minWidth:0,backgroundColor:'#f6f6f8',overflow:'hidden'},tabletMainInner:{position:'absolute',left:0,right:0,top:0,bottom:-78},tabletDivider:{width:1,backgroundColor:'#dedee6'},tabletChatPane:{flex:.90,minWidth:400,backgroundColor:'#f6f6f8',overflow:'hidden'},tabletChatInner:{position:'absolute',left:0,right:0,top:0,bottom:-78},"
+          s = s.replace(old,new)
+          old2 = "sideNav:{width:104,backgroundColor:'#fff',borderRightWidth:1,borderRightColor:'#ececf2',paddingTop:28,paddingBottom:22,justifyContent:'space-between',alignItems:'center'},sideTop:{width:'100%',gap:12},sideItem:{width:'100%',height:72,paddingHorizontal:8},sideActive:{flex:1,borderRadius:18,alignItems:'center',justifyContent:'center'},sideInactive:{flex:1,borderRadius:18,alignItems:'center',justifyContent:'center'},sideActiveText:{fontSize:11,color:'#fff',fontWeight:'700',marginTop:5},sideInactiveText:{fontSize:11,color:'#6d3a93',fontWeight:'600',marginTop:5},"
+          new2 = "sideNav:{width:116,backgroundColor:'#fff',borderRightWidth:1,borderRightColor:'#ececf2',paddingTop:28,paddingBottom:22,justifyContent:'space-between',alignItems:'center'},sideTop:{width:'100%',gap:12},sideItem:{width:'100%',height:76,paddingHorizontal:9},sideActive:{flex:1,borderRadius:19,alignItems:'center',justifyContent:'center'},sideInactive:{flex:1,borderRadius:19,alignItems:'center',justifyContent:'center'},sideActiveText:{fontSize:12,color:'#fff',fontWeight:'700',marginTop:5},sideInactiveText:{fontSize:12,color:'#6d3a93',fontWeight:'600',marginTop:5},"
+          s = s.replace(old2,new2)
+          p.write_text(s)
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx src/Root.tsx
+          if git diff --cached --quiet; then
+            echo "No changes needed"
+            exit 0
+          fi
+          git commit -m "Refine iPad App Store layout"
+          git push
