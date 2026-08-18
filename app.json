@@ -27,7 +27,6 @@
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./public/logo carre.png",
-        "backgroundImage": "./public/logo carre.png",
         "backgroundColor": "#FFFFFF"
       },
       "permissions": ["READ_CONTACTS", "POST_NOTIFICATIONS", "CAMERA"]
