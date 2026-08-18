@@ -26,10 +26,14 @@
       "package": "com.romainmannino.onlive",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "foregroundImage": "./public/logo carre.png",
+        "foregroundImage": "./public/android-foreground.png",
         "backgroundColor": "#FFFFFF"
       },
-      "permissions": ["READ_CONTACTS", "POST_NOTIFICATIONS", "CAMERA"]
+      "permissions": [
+        "READ_CONTACTS",
+        "POST_NOTIFICATIONS",
+        "CAMERA"
+      ]
     },
     "plugins": [
       [
