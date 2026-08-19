@@ -11,3 +11,4 @@ if(count!==1)throw new Error(`Expected exactly 1 loadContacts match, found ${cou
 src=src.replace(oldText,newText);
 fs.writeFileSync(path,src);
 console.log('Fixed contact alias sync after contacts load.');
+// Trigger workflow after workflow creation.
