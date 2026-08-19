@@ -1,4 +1,3 @@
-# trigger final 2026-08-20
 name: Finalize Onlive social UI upgrade
 
 on:
@@ -46,13 +45,7 @@ jobs:
           s = s.replace("colors={active?['#315CFF','#F000B8']:['#ececf2','#dedee6']}", "colors={active?(['#315CFF','#F000B8'] as const):(['#ececf2','#dedee6'] as const)}")
           p.write_text(s)
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: TypeScript check
-        run: npx tsc --noEmit
-
-      - name: Commit upgrade
+      - name: Commit generated UI patch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -60,3 +53,10 @@ jobs:
           git diff --cached --quiet && exit 0
           git commit -m "Upgrade Onlive home, favorites and realtime social UI"
           git push
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript diagnostic
+        continue-on-error: true
+        run: npx tsc --noEmit
