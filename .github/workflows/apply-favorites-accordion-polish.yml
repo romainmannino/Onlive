@@ -1,0 +1,35 @@
+name: Apply favorites accordion polish
+
+on:
+  push:
+    paths:
+      - scripts/apply-favorites-accordion-polish.js
+      - .github/workflows/apply-favorites-accordion-polish.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Apply favorites accordion polish
+        run: node scripts/apply-favorites-accordion-polish.js
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "No changes to commit"
+          else
+            git add src/MainApp.tsx
+            git commit -m "Polish header and favorites accordion"
+            git push
+          fi
