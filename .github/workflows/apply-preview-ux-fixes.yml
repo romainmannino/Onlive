@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - scripts/apply-preview-ux-fixes.js
+      - .github/workflows/apply-preview-ux-fixes.yml
   workflow_dispatch:
 
 permissions:
