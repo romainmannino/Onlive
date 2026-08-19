@@ -1,0 +1,61 @@
+name: Finalize Onlive social UI upgrade
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/onlive-social-ui-finalize.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Apply existing Onlive social UI patch
+        shell: python
+        run: |
+          from pathlib import Path
+          wf = Path('.github/workflows/onlive-social-ui-upgrade.yml').read_text()
+          marker = '      - name: Patch MainApp\n        shell: python\n        run: |\n'
+          start = wf.index(marker) + len(marker)
+          end = wf.index('      - name: Install dependencies', start)
+          block = wf[start:end]
+          lines = block.splitlines()
+          code = '\n'.join(line[10:] if line.startswith('          ') else line for line in lines)
+          exec(compile(code, 'onlive-social-ui-upgrade.yml', 'exec'))
+
+      - name: Fix strict LinearGradient typings
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('src/MainApp.tsx')
+          s = p.read_text()
+          s = s.replace("colors={selectable?theme.colors:['#555861','#33353b','#101114']}", "colors={selectable?theme.colors:(['#555861','#33353b','#101114'] as const)}")
+          s = s.replace("colors={active?['#315CFF','#F000B8']:['#ececf2','#dedee6']}", "colors={active?(['#315CFF','#F000B8'] as const):(['#ececf2','#dedee6'] as const)}")
+          p.write_text(s)
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+
+      - name: Commit upgrade
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Upgrade Onlive home, favorites and realtime social UI"
+          git push
