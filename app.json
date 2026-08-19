@@ -12,6 +12,12 @@
       "resizeMode": "contain",
       "backgroundColor": "#0A0A0A"
     },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/e9adeb7b-85f5-4211-900e-29d1793d0d09"
+    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.romainmannino.onlive",
