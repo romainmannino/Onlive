@@ -33,3 +33,4 @@ jobs:
             git commit -m "Add favorite start notifications"
             git push
           fi
+# trigger
