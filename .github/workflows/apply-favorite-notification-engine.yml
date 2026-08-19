@@ -1,0 +1,35 @@
+name: Apply favorite notification engine
+
+on:
+  push:
+    paths:
+      - scripts/apply-favorite-notification-engine.js
+      - .github/workflows/apply-favorite-notification-engine.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Apply notification engine
+        run: node scripts/apply-favorite-notification-engine.js
+      - name: Typecheck app
+        run: npx tsc --noEmit
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "No changes to commit"
+          else
+            git add src/MainApp.tsx src/Root.tsx
+            git commit -m "Add favorite start notifications"
+            git push
+          fi
