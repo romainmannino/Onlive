@@ -1,0 +1,54 @@
+name: Fix complete favorites workflow
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-complete-favorites-workflow.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Repair YAML block indentation
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/complete-onlive-favorites.yml')
+          lines = path.read_text().splitlines()
+          out = []
+          in_triple = False
+
+          for line in lines:
+              stripped = line.lstrip()
+              if not in_triple and any(stripped.startswith(name + '="""') for name in ('insert','add','notif','func')):
+                  in_triple = True
+                  out.append(line)
+                  continue
+              if in_triple:
+                  if stripped == '"""':
+                      out.append('          """')
+                      in_triple = False
+                  else:
+                      out.append(line if line.startswith('          ') else '          ' + line)
+                  continue
+              out.append(line)
+
+          path.write_text('\n'.join(out) + '\n')
+          PY
+      - name: Commit repair
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/complete-onlive-favorites.yml
+          git diff --cached --quiet && exit 0
+          git commit -m "Repair complete favorites workflow YAML"
+          git push
