@@ -1,113 +1,11 @@
-name: Complete Onlive favorites and notifications
+name: Complete Onlive favorites and notifications (obsolete)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/complete-onlive-favorites.yml'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  complete:
+  obsolete:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - name: Patch remaining Onlive evolutions
-        shell: python
-        run: |
-          from pathlib import Path
-
-          # notifications.ts
-          p=Path('src/notifications.ts'); s=p.read_text()
-          s=s.replace("import Constants from'expo-constants';", "import Constants from'expo-constants';\nimport AsyncStorage from'@react-native-async-storage/async-storage';")
-          insert="""
-const FAVORITE_NOTIFICATION_IDS='@onlive/favorite-notification-ids';
-function favNorm(v=''){return v.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim()}
-function favoriteMatchesProgram(id:string,p:{title:string;channel?:string;category?:string}){
-  const text=favNorm(`${p.title} ${p.channel||''} ${p.category||''}`);
-  if(id.startsWith('program:'))return favNorm(p.title)===id.slice(8);
-  const map:Record<string,string[]>={
-    football:['football','foot','ligue 1','champions league','premier league','liga','serie a','bundesliga','psg','marseille','lyon','monaco','lille','lens'],
-    tennis:['tennis','roland garros','wimbledon','us open','australian open','masters 1000'],rugby:['rugby','top 14','six nations'],basket:['basket','nba','euroleague'],
-    f1:['formule 1','formula 1','f1','grand prix'],cycling:['cyclisme','tour de france','giro','vuelta'],swimming:['natation'],handball:['handball'],volley:['volley'],golf:['golf','pga'],combat:['mma','ufc','boxe','judo','karate'],athletics:['athletisme','marathon'],
-    psg:['psg','paris saint germain'],om:['olympique de marseille',' marseille '],ol:['olympique lyonnais',' lyon '],monaco:['as monaco',' monaco '],lille:['losc',' lille '],lens:['rc lens',' lens '],
-    france-foot:['equipe de france','france football'],champions-league:['ligue des champions','champions league'],ligue1:['ligue 1'],roland-garros:['roland garros'],tour-france:['tour de france'],
-    'koh-lanta':['koh lanta'],'the-voice':['the voice'],'top-chef':['top chef'],adp:['amour est dans le pre'],staracademy:['star academy'],dals:['danse avec les stars'],thevoicekids:['the voice kids'],
-    action:['action'],comedy:['comedie','comedy'],thriller:['thriller','policier'],documentary:['documentaire'],animation:['animation','jeunesse'],scifi:['science fiction','sci fi'],romance:['romance','romantique']
-  };
-  return(map[id]||[]).some(k=>text.includes(favNorm(k)));
-}
-export async function clearFavoriteNotifications(){try{const raw=await AsyncStorage.getItem(FAVORITE_NOTIFICATION_IDS);const ids=raw?JSON.parse(raw):[];for(const id of Array.isArray(ids)?ids:[])await Notifications.cancelScheduledNotificationAsync(String(id)).catch(()=>{});await AsyncStorage.removeItem(FAVORITE_NOTIFICATION_IDS)}catch{}}
-export async function scheduleFavoriteNotifications(userId:string,programs:Array<{id:string;title:string;channel:string;category:string;time:string}>,favorites:string[]){
-  await clearFavoriteNotifications();
-  if(!userId||!favorites.length)return;
-  const{data}=await supabase.from('notification_preferences').select('favorite_alerts').eq('user_id',userId).maybeSingle();
-  if(data?.favorite_alerts===false)return;
-  const perms=await Notifications.getPermissionsAsync();if(perms.status!=='granted')return;
-  const ids:string[]=[];const now=Date.now();
-  for(const prog of programs){
-    if(!favorites.some(f=>favoriteMatchesProgram(f,prog)))continue;
-    const[h,m]=prog.time.split(':').map(Number);const date=new Date();date.setHours(h||0,m||0,0,0);
-    if(date.getTime()<=now+5000)continue;
-    try{const id=await Notifications.scheduleNotificationAsync({content:{title:'Onlive',body:`${prog.title} commence maintenant`,sound:'default',data:{type:'favorite',programId:prog.id,programTitle:prog.title}},trigger:date});ids.push(id)}catch{}
-  }
-  await AsyncStorage.setItem(FAVORITE_NOTIFICATION_IDS,JSON.stringify(ids));
-}
-"""
-          s=s.replace("export async function setAppBadge(count:number){", insert+"\nexport async function setAppBadge(count:number){")
-          p.write_text(s)
-
-          # MainApp.tsx
-          p=Path('src/MainApp.tsx'); s=p.read_text()
-          s=s.replace("import{Alert,FlatList,Image,Linking,Modal,SafeAreaView,ScrollView,Share,StyleSheet,Text,TextInput,TouchableOpacity,View,useWindowDimensions}from'react-native';", "import{Alert,FlatList,Image,LayoutAnimation,Linking,Modal,SafeAreaView,ScrollView,Share,StyleSheet,Text,TextInput,TouchableOpacity,View,useWindowDimensions}from'react-native';")
-          s=s.replace("import{supabase}from'./supabase';", "import{supabase}from'./supabase';\nimport{scheduleFavoriteNotifications}from'./notifications';")
-          s=s.replace(" {id:'swimming',label:'Natation',group:'Sports',icon:'water-outline'},", " {id:'swimming',label:'Natation',group:'Sports',icon:'water-outline'},\n {id:'handball',label:'Handball',group:'Sports',icon:'hand-left-outline'},\n {id:'volley',label:'Volley',group:'Sports',icon:'ellipse-outline'},\n {id:'golf',label:'Golf',group:'Sports',icon:'golf-outline'},\n {id:'combat',label:'MMA / Boxe / Sports de combat',group:'Sports',icon:'fitness-outline'},\n {id:'athletics',label:'Athlétisme',group:'Sports',icon:'walk-outline'},")
-          s=s.replace(" {id:'ol',label:'Olympique Lyonnais',group:'Clubs',icon:'football-outline'},", " {id:'ol',label:'Olympique Lyonnais',group:'Clubs',icon:'football-outline'},\n {id:'monaco',label:'AS Monaco',group:'Clubs',icon:'football-outline'},\n {id:'lille',label:'LOSC Lille',group:'Clubs',icon:'football-outline'},\n {id:'lens',label:'RC Lens',group:'Clubs',icon:'football-outline'},")
-          s=s.replace(" {id:'adp',label:\"L'Amour est dans le pré\",group:'Émissions',icon:'heart-outline'},", " {id:'adp',label:\"L'Amour est dans le pré\",group:'Émissions',icon:'heart-outline'},\n {id:'staracademy',label:'Star Academy',group:'Émissions',icon:'star-outline'},\n {id:'dals',label:'Danse avec les stars',group:'Émissions',icon:'musical-notes-outline'},\n {id:'thevoicekids',label:'The Voice Kids',group:'Émissions',icon:'mic-outline'},")
-          s=s.replace(" {id:'documentary',label:'Documentaires',group:'Films & séries',icon:'earth-outline'}", " {id:'documentary',label:'Documentaires',group:'Films & séries',icon:'earth-outline'},\n {id:'animation',label:'Animation / Jeunesse',group:'Films & séries',icon:'happy-outline'},\n {id:'scifi',label:'Science-fiction',group:'Films & séries',icon:'planet-outline'},\n {id:'romance',label:'Romance',group:'Films & séries',icon:'heart-outline'}")
-          s=s.replace("  const favoriteGroups=['Tous',...Array.from(new Set(FAVORITE_CATALOG.map(x=>x.group)))];\n  const visibleFavorites=FAVORITE_CATALOG.filter(x=>(favoriteGroup==='Tous'||x.group===favoriteGroup)&&(!favoriteSearch.trim()||`${x.label} ${x.group}`.toLowerCase().includes(favoriteSearch.trim().toLowerCase())));", "  const dynamicProgramFavorites=useMemo(()=>{const seen=new Set<string>();return programs.filter(p=>{const k=p.title.trim().toLowerCase();if(!k||seen.has(k))return false;seen.add(k);return true}).map(p=>({id:`program:${p.title.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim()}`,label:p.title,group:'Programmes',icon:'tv-outline'}))},[programs]);\n  const allFavorites=[...FAVORITE_CATALOG,...dynamicProgramFavorites];\n  const favoriteGroups=['Tous',...Array.from(new Set(allFavorites.map(x=>x.group)))];\n  const visibleFavorites=allFavorites.filter(x=>(favoriteGroup==='Tous'||x.group===favoriteGroup)&&(!favoriteSearch.trim()||`${x.label} ${x.group}`.toLowerCase().includes(favoriteSearch.trim().toLowerCase())));")
-          anchor="  async function toggleFavorite(id:string){const next=favorites.includes(id)?favorites.filter(x=>x!==id):[...favorites,id];setFavorites(next);await AsyncStorage.setItem(FAVORITES_KEY,JSON.stringify(next))}"
-          s=s.replace(anchor, anchor+"\n  useEffect(()=>{if(!userId||reviewMode)return;scheduleFavoriteNotifications(userId,programs,favorites).catch(()=>{})},[userId,programs,favorites,reviewMode]);")
-          s=s.replace("if(reviewMode){if(!selectedProgram){setLiveFriends([]);return}setLiveFriends([", "if(reviewMode){if(!selectedProgram){LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);setLiveFriends([]);return}LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);setLiveFriends([")
-          s=s.replace("if(!list.length){setLiveFriends([]);return}const{data,error}=", "if(!list.length){LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);setLiveFriends([]);return}const{data,error}=")
-          s=s.replace("if(error)return;setLiveFriends((data||[]).flatMap", "if(error)return;LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);setLiveFriends((data||[]).flatMap")
-          p.write_text(s)
-
-          # Root.tsx notification settings
-          p=Path('src/Root.tsx'); s=p.read_text()
-          s=s.replace("import{Notifications,registerPushNotifications,setAppBadge}from'./notifications';", "import{Notifications,clearFavoriteNotifications,registerPushNotifications,setAppBadge}from'./notifications';")
-          s=s.replace(" const[resetLoading,setResetLoading]=useState(false);", " const[resetLoading,setResetLoading]=useState(false);\n const[notifPrefs,setNotifPrefs]=useState({messages:true,invitations:true,favorites:true});")
-          after=" useEffect(()=>{if(!userId)return;registerPushNotifications(userId)},[userId]);"
-          add="""
- useEffect(()=>{if(!userId||!accountOpen)return;supabase.from('notification_preferences').select('chat_messages,chat_invites,watching_alerts,favorite_alerts').eq('user_id',userId).maybeSingle().then(({data})=>{if(data)setNotifPrefs({messages:data.chat_messages!==false,invitations:data.chat_invites!==false&&data.watching_alerts!==false,favorites:data.favorite_alerts!==false})})},[userId,accountOpen]);
- const toggleNotifPref=async(kind:'messages'|'invitations'|'favorites')=>{if(!userId)return;const next={!notifPrefs[kind]};setNotifPrefs(v=>({...v,[kind]:next}));const patch:any={user_id:userId,updated_at:new Date().toISOString()};if(kind==='messages')patch.chat_messages=next;if(kind==='invitations'){patch.chat_invites=next;patch.watching_alerts=next}if(kind==='favorites')patch.favorite_alerts=next;const{error}=await supabase.from('notification_preferences').upsert(patch,{onConflict:'user_id'});if(error){setNotifPrefs(v=>({...v,[kind]:!next}));Alert.alert('Réglage impossible',error.message);return}if(kind==='favorites'&&!next)await clearFavoriteNotifications()};
-"""
-          s=s.replace(after,after+add)
-          privacy="<TouchableOpacity onPress={()=>Linking.openURL('https://onlive-app.com/privacy')} style={s.accountRow}>"
-          notif="""<Text style={s.accountSectionTitle}>Notifications</Text><View style={s.notifPrefsCard}><NotifPrefRow icon=\"chatbubble-ellipses-outline\" label=\"Messages\" value={notifPrefs.messages} onPress={()=>toggleNotifPref('messages')}/><NotifPrefRow icon=\"people-outline\" label=\"Invitations\" value={notifPrefs.invitations} onPress={()=>toggleNotifPref('invitations')}/><NotifPrefRow icon=\"star-outline\" label=\"Favoris\" value={notifPrefs.favorites} onPress={()=>toggleNotifPref('favorites')} last/></View>"""
-          s=s.replace(privacy,notif+privacy)
-          func="""
-function NotifPrefRow({icon,label,value,onPress,last=false}:{icon:any;label:string;value:boolean;onPress:()=>void;last?:boolean}){return<TouchableOpacity onPress={onPress} style={[s.notifPrefRow,!last&&s.notifPrefDivider]}><View style={s.accountRowIcon}><Ionicons name={icon} size={20} color=\"#6b2cff\"/></View><Text style={s.notifPrefLabel}>{label}</Text><View style={[s.toggleTrack,value&&s.toggleTrackOn]}><View style={[s.toggleKnob,value&&s.toggleKnobOn]}/></View></TouchableOpacity>}
-"""
-          s=s.replace("function TabletNavItem",func+"\nfunction TabletNavItem")
-          s=s.replace("dangerTitle:{", "accountSectionTitle:{fontSize:14,fontWeight:'900',color:'#111',marginTop:4,marginBottom:8},notifPrefsCard:{backgroundColor:'#f7f7fa',borderRadius:18,paddingHorizontal:12,marginBottom:12},notifPrefRow:{height:58,flexDirection:'row',alignItems:'center',gap:10},notifPrefDivider:{borderBottomWidth:1,borderBottomColor:'#e8e8ee'},notifPrefLabel:{flex:1,fontSize:15,fontWeight:'800',color:'#111'},toggleTrack:{width:44,height:26,borderRadius:13,backgroundColor:'#d6d6dc',padding:3},toggleTrackOn:{backgroundColor:'#6b2cff'},toggleKnob:{width:20,height:20,borderRadius:10,backgroundColor:'#fff'},toggleKnobOn:{transform:[{translateX:18}]},dangerTitle:{")
-          p.write_text(s)
-
-      - name: Install dependencies
-        run: npm ci
-      - name: TypeScript check
-        run: npx tsc --noEmit
-      - name: Commit completed evolutions
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/MainApp.tsx src/Root.tsx src/notifications.ts
-          git diff --cached --quiet && exit 0
-          git commit -m "Complete favorites notifications and realtime polish"
-          git push
+      - name: Obsolete workflow
+        run: echo "This legacy workflow is disabled. Favorites changes are applied by the dedicated workflows."
