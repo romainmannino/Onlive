@@ -1,0 +1,66 @@
+name: Polish guide logos and programme images
+on:
+  push:
+    paths:
+      - '.github/workflows/polish-guide-logos-images.yml'
+  workflow_dispatch:
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Patch guide logo labels and artwork refresh
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          # Refresh editorial/Onlive rows through the server-side artwork resolver,
+          # even when they already have an image URL. This lets a wrong cached
+          # sport image be corrected instead of being considered valid forever.
+          p=Path('src/tvPrograms.ts')
+          s=p.read_text()
+          old="const needsArtwork = rows.filter(row=>isGenericImage(row.image_url));"
+          new="const needsArtwork = rows.filter(row=>row.source!=='xmltvfr'||isGenericImage(row.image_url)).slice(0,40);"
+          if old in s:
+              s=s.replace(old,new,1)
+          elif new not in s:
+              raise SystemExit('tvPrograms artwork selection pattern not found')
+          p.write_text(s)
+
+          # Always keep the channel name visible under the logo. Favicons and
+          # XMLTV logos have inconsistent aspect ratios, so text remains the
+          # reliable identifier.
+          p=Path('src/MainApp.tsx')
+          s=p.read_text()
+          old="{item.channelLogo?<View style={{width:62,alignItems:'flex-start'}}><Image source={{uri:item.channelLogo}} resizeMode=\"contain\" style={{width:34,height:22}}/></View>:<Text style={{width:62,fontSize:11,fontWeight:'800',color:'#555'}} numberOfLines={1}>{item.channel}</Text>}"
+          new="<View style={{width:66,alignItems:'center',justifyContent:'center'}}>{item.channelLogo?<Image source={{uri:item.channelLogo}} resizeMode=\"contain\" style={{width:34,height:22,marginBottom:2}}/>:null}<Text style={{width:64,fontSize:8.5,fontWeight:'700',color:'#777',textAlign:'center'}} numberOfLines={1}>{item.channel}</Text></View>"
+          if old in s:
+              s=s.replace(old,new,1)
+          elif new not in s:
+              # Handle a future formatting variant without failing the whole job.
+              import re
+              pattern=r"\{item\.channelLogo\?<View style=\{\{width:62,alignItems:'flex-start'\}\}><Image source=\{\{uri:item\.channelLogo\}\} resizeMode=\"contain\" style=\{\{width:34,height:22\}\}/></View>:<Text style=\{\{width:62,fontSize:11,fontWeight:'800',color:'#555'\}\} numberOfLines=\{1\}>\{item\.channel\}</Text>\}"
+              s2,n=re.subn(pattern,new,s,count=1)
+              if n:
+                  s=s2
+              else:
+                  raise SystemExit('MainApp guide logo block not found')
+          p.write_text(s)
+          PY
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Commit changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/tvPrograms.ts src/MainApp.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m 'Show channel names under logos and refresh programme artwork'
+          git push
