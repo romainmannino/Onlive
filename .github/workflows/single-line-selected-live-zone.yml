@@ -1,0 +1,66 @@
+name: Single-line selected program and white Onlive zone
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/single-line-selected-live-zone.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Patch selected line and Onlive section contrast
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const p='src/MainApp.tsx';
+          let s=fs.readFileSync(p,'utf8');
+          let changed=false;
+
+          const oldSelected="{selectedProgram?<View style={{marginTop:2,marginBottom:2}}><Text style={{fontSize:13,fontWeight:'600',color:'#6b2cff',marginBottom:1}}>Tu regardes</Text><Text style={{fontSize:18,lineHeight:21,fontWeight:'800',color:'#6b2cff'}} numberOfLines={2}>« {selectedProgram.title} »</Text><Text style={{fontSize:10.5,color:'#8b6cff',marginTop:2}} numberOfLines={1}>{selectedProgram.category||'Programme'} · {selectedProgram.channel}</Text></View>:<Text style={[s.introTitle,attentionFlash&&s.introTitleAttention]}>Choisis ton programme</Text>}";
+          const newSelected="{selectedProgram?<Text style={{fontSize:14.5,lineHeight:18,marginTop:10,marginBottom:2,color:'#111'}} numberOfLines={1}><Text style={{fontWeight:'500',color:'#111'}}>Tu regardes : </Text><Text style={{fontWeight:'800',color:'#6b2cff'}}>« {selectedProgram.title} »</Text></Text>:<Text style={[s.introTitle,attentionFlash&&s.introTitleAttention]}>Choisis ton programme</Text>}";
+          if(s.includes(oldSelected)) { s=s.replace(oldSelected,newSelected); changed=true; }
+
+          if(s.includes("const{width}=useWindowDimensions();")) {
+            s=s.replace("const{width}=useWindowDimensions();","const{width,height}=useWindowDimensions();");
+            changed=true;
+          }
+
+          const liveStart="<View style={s.liveSectionHead}><Text style={[s.sectionTitle,s.liveSectionTitle]}>Ils sont Onlive ({liveFriends.length})</Text>";
+          const liveStartNew="<View style={[s.liveZone,{minHeight:Math.max(340,height*.46)}]}><View style={s.liveSectionHead}><Text style={[s.sectionTitle,s.liveSectionTitle]}>Ils sont Onlive ({liveFriends.length})</Text>";
+          if(s.includes(liveStart)) { s=s.replace(liveStart,liveStartNew); changed=true; }
+
+          const liveEnd="</View>}</ScrollView><BottomNav active=\"home\"";
+          const liveEndNew="</View>}</View></ScrollView><BottomNav active=\"home\"";
+          if(s.includes(liveEnd)) { s=s.replace(liveEnd,liveEndNew); changed=true; }
+
+          const styleAnchor="liveSectionHead:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},";
+          const styleReplacement="liveZone:{backgroundColor:'#fff',marginHorizontal:-14,paddingHorizontal:14,paddingTop:6,paddingBottom:28,marginTop:4},liveSectionHead:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},";
+          if(s.includes(styleAnchor) && !s.includes("liveZone:{backgroundColor:'#fff'")) { s=s.replace(styleAnchor,styleReplacement); changed=true; }
+
+          s=s.replace("friendsCard:{backgroundColor:'#fff',borderRadius:22,paddingHorizontal:14}","friendsCard:{backgroundColor:'#f6f6f8',borderRadius:22,paddingHorizontal:14}");
+          s=s.replace("emptyFriends:{backgroundColor:'#fff',borderRadius:24,padding:26,alignItems:'center'}","emptyFriends:{backgroundColor:'#f6f6f8',borderRadius:24,padding:26,alignItems:'center'}");
+          s=s.replace("liveSearchBox:{height:42,borderRadius:14,backgroundColor:'#fff'","liveSearchBox:{height:42,borderRadius:14,backgroundColor:'#f6f6f8'");
+
+          if(!changed) throw new Error('No UI anchors found; source may have changed');
+          fs.writeFileSync(p,s);
+          NODE
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx
+          git diff --cached --quiet || git commit -m "Refine selected program line and invert Onlive section contrast"
+          git push
