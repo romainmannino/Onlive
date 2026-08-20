@@ -17,7 +17,7 @@ type ChatTarget={userId:string;name:string;programId:string|null;programTitle:st
 type ContactFilter='Tous'|'Onlive'|'Inviter';
 type ProgramState='future'|'current'|'expired';
 
-const FILTERS=['Tous','Sport','Divertissement','Film','Série']as const;
+const FILTERS=['Tous','Sport','Divertissement','Film','Série','Documentaire']as const;
 const SPORTS=['Tous','Football','Tennis','Rugby','F1 / Auto','Cyclisme','Basket','Handball','Moto','Volley','Golf','Natation','Sports de combat','Athlétisme','Autres']as const;
 const CONTACT_FILTERS:['Tous','Onlive','Inviter']=['Tous','Onlive','Inviter'];
 const INVITE_URL='https://github.com/romainmannino/Onlive';
@@ -181,7 +181,7 @@ export default function MainApp({onOpenDiscussions,onStartChat,onOpenAccount,pro
   },[userId,screen]);
 
   const visiblePrograms=useMemo(()=>{const list=programs.filter(p=>programState(p,now)!=='expired').filter(p=>{if(filter==='Tous')return true;if(filter==='Sport'){const detected=sportType(p);const isSport=p.category==='Sport'||p.category==='Foot'||p.category==='Tennis'||detected!=='Autres';return isSport&&(sportFilter==='Tous'||detected===sportFilter)}return p.category===filter});if(!selectedProgram)return list;return [...list].sort((a,b)=>a.id===selectedProgram.id?-1:b.id===selectedProgram.id?1:0)},[filter,sportFilter,programs,now,selectedProgram]);
-  const featuredPrograms=useMemo(()=>{const list=programs.filter(p=>programState(p,now)!=='expired');if(!selectedProgram)return list.slice(0,4);return [...list].sort((a,b)=>a.id===selectedProgram.id?-1:b.id===selectedProgram.id?1:0).slice(0,3)},[programs,now,selectedProgram]);
+  const featuredPrograms=useMemo(()=>{const base=programs.filter(p=>programState(p,now)!=='expired');const explicit=base.filter(p=>(p as any).featured);const editorial=base.filter(p=>(p as any).source!=='xmltvfr');const preferred=explicit.length?explicit:(editorial.length?editorial:base);if(!selectedProgram)return preferred.slice(0,3);return [...preferred].sort((a,b)=>a.id===selectedProgram.id?-1:b.id===selectedProgram.id?1:0).slice(0,3)},[programs,now,selectedProgram]);
   const phoneContacts=useMemo(()=>deviceContacts.filter(c=>contactPhones(c).length>0),[deviceContacts]);
   const matchMap=useMemo(()=>{const m=new Map<string,Match>();matches.forEach(x=>m.set(x.phone,x));return m},[matches]);
   const visibleContacts=useMemo(()=>{const q=contactSearch.trim().toLowerCase();return phoneContacts.filter(c=>{const phones=contactPhones(c),has=phones.some(p=>matchMap.has(p));if(contactFilter==='Onlive'&&!has)return false;if(contactFilter==='Inviter'&&has)return false;if(q&&!`${c.name||''} ${phones.join(' ')}`.toLowerCase().includes(q))return false;return true}).sort((a,b)=>{const ap=contactPhones(a),bp=contactPhones(b),am=ap.some(p=>matchMap.has(p)),bm=bp.some(p=>matchMap.has(p));if(am!==bm)return am?-1:1;const as=Math.max(0,...ap.map(p=>contactScores[p]||0)),bs=Math.max(0,...bp.map(p=>contactScores[p]||0));if(as!==bs)return bs-as;return(a.name||'').localeCompare(b.name||'','fr')})},[phoneContacts,matchMap,contactSearch,contactFilter,contactScores]);
