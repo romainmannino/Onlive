@@ -13,8 +13,37 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
+      - name: Fix existing TypeScript blockers
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+
+          const tvPath='src/tvPrograms.ts';
+          let tv=fs.readFileSync(tvPath,'utf8');
+          if(!tv.includes("Documentaire:'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee")){
+            tv=tv.replace(
+              "  Divertissement:'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=900&q=85',",
+              "  Divertissement:'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=900&q=85',\n  Documentaire:'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=85',"
+            );
+          }
+          if(!tv.includes("Tennis:'https://images.unsplash.com/photo-1595435742656-5272d0b3fa82")){
+            tv=tv.replace(
+              "  Foot:'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?auto=format&fit=crop&w=900&q=85',",
+              "  Foot:'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?auto=format&fit=crop&w=900&q=85',\n  Tennis:'https://images.unsplash.com/photo-1595435742656-5272d0b3fa82?auto=format&fit=crop&w=900&q=85',"
+            );
+          }
+          fs.writeFileSync(tvPath,tv);
+
+          const mainPath='src/MainApp.tsx';
+          let main=fs.readFileSync(mainPath,'utf8');
+          main=main.replace(
+            'keyExtractor={c=>c.id}',
+            "keyExtractor={(c,index)=>c.id||contactPhones(c)[0]||(c.name||'contact')+'-'+index}"
+          );
+          fs.writeFileSync(mainPath,main);
+          NODE
       - name: Patch home program guide
         run: |
           node <<'NODE'
@@ -53,7 +82,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/MainApp.tsx
+          git add src/MainApp.tsx src/tvPrograms.ts
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "Redesign home program guide"
+          git commit -m "Fix TypeScript blockers and redesign home program guide"
           git push
