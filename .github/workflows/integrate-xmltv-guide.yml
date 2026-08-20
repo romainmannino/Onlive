@@ -1,0 +1,52 @@
+name: Integrate XMLTV guide
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/integrate-xmltv-guide.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Patch XMLTV data integration
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+
+          let tv=fs.readFileSync('src/tvPrograms.ts','utf8');
+          if(!tv.includes('channelLogo?: string;')) tv=tv.replace('  date?: string;\n};','  date?: string;\n  channelLogo?: string;\n  featured?: boolean;\n};');
+          tv=tv.replace("export function resolveProgramImage(title:string,category:ProgramCategory,_image?:string|null){return supabase.storage.from('program-artworks').getPublicUrl(artworkPath(title,category)).data.publicUrl}","export function resolveProgramImage(title:string,category:ProgramCategory,image?:string|null){if(image&&!isGenericImage(image))return image;return supabase.storage.from('program-artworks').getPublicUrl(artworkPath(title,category)).data.publicUrl}");
+          if(!tv.includes("source','xmltvfr")){
+            const anchor='export async function fetchTvPrograms(date = parisDate()): Promise<Program[]> {\n';
+            const inject=`export async function fetchTvPrograms(date = parisDate()): Promise<Program[]> {\n  try {\n    const { count } = await supabase.from('tv_programs').select('id',{count:'exact',head:true}).eq('program_date',date).eq('source','xmltvfr');\n    if(!count) await supabase.functions.invoke('import-xmltv',{body:{date}});\n  } catch(e) { console.warn('XMLTV import unavailable',e); }\n`;
+            if(!tv.includes(anchor)) throw new Error('fetchTvPrograms anchor missing');
+            tv=tv.replace(anchor,inject);
+          }
+          tv=tv.replace(".select('id,title,channel,category,start_time,image_url,is_live,source,program_date')",".select('id,title,channel,category,start_time,image_url,is_live,source,program_date,channel_logo_url,featured')");
+          if(!tv.includes('channelLogo: row.channel_logo_url')) tv=tv.replace("      date: row.program_date || date,\n","      date: row.program_date || date,\n      channelLogo: row.channel_logo_url || undefined,\n      featured: Boolean(row.featured),\n");
+          fs.writeFileSync('src/tvPrograms.ts',tv);
+
+          let app=fs.readFileSync('src/MainApp.tsx','utf8');
+          app=app.replace("const FILTERS=['Tous','Sport','Divertissement','Film','Série']as const;","const FILTERS=['Tous','Sport','Divertissement','Film','Série','Documentaire']as const;");
+          app=app.replace(/const featuredPrograms=useMemo\(\(\)=>\{[^\n]+\},\[programs,now,selectedProgram\]\);/,`const featuredPrograms=useMemo(()=>{const base=programs.filter(p=>programState(p,now)!=='expired');const explicit=base.filter(p=>(p as any).featured);const editorial=base.filter(p=>(p as any).source!=='xmltvfr');const preferred=explicit.length?explicit:(editorial.length?editorial:base);if(!selectedProgram)return preferred.slice(0,3);return [...preferred].sort((a,b)=>a.id===selectedProgram.id?-1:b.id===selectedProgram.id?1:0).slice(0,3)},[programs,now,selectedProgram]);`);
+          fs.writeFileSync('src/MainApp.tsx',app);
+          NODE
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Commit XMLTV integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/tvPrograms.ts src/MainApp.tsx
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Integrate XMLTV guide data"
+          git push
