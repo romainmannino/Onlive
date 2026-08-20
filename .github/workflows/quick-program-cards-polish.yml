@@ -1,0 +1,50 @@
+name: Quick program cards polish
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/quick-program-cards-polish.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Apply compact three-card layout and remove future dimming
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const path='src/MainApp.tsx';
+          let s=fs.readFileSync(path,'utf8');
+          const replacements=[
+            [".slice(0,4)},[programs,now,selectedProgram]);",".slice(0,3)},[programs,now,selectedProgram]);"],
+            ["const cardWidth=Math.max(76,(width-46)/4);","const cardWidth=Math.max(96,(width-42)/3);"],
+            ["style={[s.programCard,{width:cardWidth,height:188,borderRadius:18},selected&&s.programCardSelected,!selectable&&s.programCardLocked]}","style={[s.programCard,{width:cardWidth,height:166,borderRadius:18},selected&&s.programCardSelected]}"],
+            ["style={[StyleSheet.absoluteFillObject,!selectable&&{opacity:.28}]}","style={StyleSheet.absoluteFillObject}"],
+            ["<LinearGradient colors={selectable?theme.colors:(['#555861','#33353b','#101114'] as const)} locations={[0,.52,1]} style={StyleSheet.absoluteFillObject}/>","<LinearGradient colors={theme.colors} locations={[0,.52,1]} style={StyleSheet.absoluteFillObject}/>"],
+            ["} {!selectable&&<View style={[StyleSheet.absoluteFillObject,{backgroundColor:'rgba(70,70,75,.48)'}]}/>}</View>","}</View>"],
+            ["<Text style={[s.programChannel,{fontSize:10}]} numberOfLines={1}>{item.channel}</Text><Text style={[s.programTitle,{fontSize:13,lineHeight:16}]} numberOfLines={2}>{item.title}</Text>","<Text style={[s.programChannel,{fontSize:9.5}]} numberOfLines={1}>{item.channel}</Text><Text style={[s.programTitle,{fontSize:12,lineHeight:14}]} numberOfLines={2}>{item.title}</Text>"],
+            ["<TouchableOpacity disabled={!selectable} onPress={()=>chooseProgram(item)} style={[s.programCard","<TouchableOpacity onPress={()=>chooseProgram(item)} style={[s.programCard"],
+            ["opacity:selectable?1:.55","opacity:1"],
+            ["<TouchableOpacity key={item.id} disabled={!selectable} onPress={()=>chooseProgram(item)}","<TouchableOpacity key={item.id} onPress={()=>chooseProgram(item)}"]
+          ];
+          let changed=0;
+          for(const [from,to] of replacements){
+            if(s.includes(from)){s=s.replace(from,to);changed++;}
+          }
+          if(changed<8) throw new Error(`Expected at least 8 UI replacements, applied ${changed}`);
+          fs.writeFileSync(path,s);
+          console.log(`Applied ${changed} program UI replacements`);
+          NODE
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Use three larger program cards and remove future dimming"
+          git push
