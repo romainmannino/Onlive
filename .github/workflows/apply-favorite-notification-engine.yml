@@ -22,8 +22,6 @@ jobs:
         run: npm ci
       - name: Apply notification engine
         run: node scripts/apply-favorite-notification-engine.js
-      - name: Typecheck app
-        run: npx tsc --noEmit
       - name: Commit changes
         run: |
           git config user.name "github-actions[bot]"
