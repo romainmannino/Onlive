@@ -1,0 +1,38 @@
+name: Quick self viewer count
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/quick-self-viewer-count.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Patch viewer count
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('src/MainApp.tsx')
+          s=p.read_text()
+          old="const viewerCounts=useMemo(()=>liveFriends.reduce<Record<string,number>>((acc,f)=>{if(f.programId)acc[f.programId]=(acc[f.programId]||0)+1;return acc},{}),[liveFriends]);"
+          new="const viewerCounts=useMemo(()=>{const counts=liveFriends.reduce<Record<string,number>>((acc,f)=>{if(f.programId)acc[f.programId]=(acc[f.programId]||0)+1;return acc},{});if(selectedProgram?.id)counts[selectedProgram.id]=(counts[selectedProgram.id]||0)+1;return counts},[liveFriends,selectedProgram]);"
+          if old not in s:
+            raise SystemExit('viewerCounts anchor not found')
+          p.write_text(s.replace(old,new,1))
+      - name: Commit change
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Count current user in program viewer badge"
+          git push
