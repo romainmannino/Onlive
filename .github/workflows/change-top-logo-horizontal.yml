@@ -1,0 +1,43 @@
+name: Change top logo to horizontal
+
+on:
+  push:
+    paths:
+      - '.github/workflows/change-top-logo-horizontal.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Patch top bar logo
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const p = 'src/MainApp.tsx';
+          let s = fs.readFileSync(p,'utf8');
+          const beforeLogo = "const LOGO_ON=require('../public/logo carre.png');";
+          const afterLogo = "const LOGO_ON=require('../public/logo horiz.png');";
+          if (s.includes(beforeLogo)) s = s.replace(beforeLogo, afterLogo);
+          const beforeStyle = "onLogo:{width:48,height:48,borderRadius:11}";
+          const afterStyle = "onLogo:{width:108,height:43}";
+          if (s.includes(beforeStyle)) s = s.replace(beforeStyle, afterStyle);
+          fs.writeFileSync(p,s);
+          NODE
+      - name: Commit change
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx
+          if git diff --cached --quiet; then
+            echo "No change needed"
+          else
+            git commit -m "Use horizontal Onlive logo in top bar"
+            git push
+          fi
