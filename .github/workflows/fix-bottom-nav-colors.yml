@@ -14,45 +14,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
       - name: Fix Home bottom nav colors
         run: |
           node <<'NODE'
           const fs=require('fs');
           const p='src/MainApp.tsx';
           let s=fs.readFileSync(p,'utf8');
-          let changed=false;
 
-          // Ensure the layer behind the floating nav is white.
-          s=s.replace(/(<View pointerEvents="none" style=\{\{position:'absolute',left:0,right:0,bottom:0,height:112,backgroundColor:)'#[0-9a-fA-F]{6}'(\}\}\/>)/g,(m,a,b)=>{changed=true;return a+"'#fff'"+b});
+          const oldBottom="bottomNav:{position:'absolute',left:0,right:0,bottom:0,height:78,backgroundColor:'#f6f6f8',flexDirection:'row'}";
+          const newBottom="bottomNav:{position:'absolute',left:0,right:0,bottom:0,height:78,backgroundColor:'#fff',flexDirection:'row'}";
+          const oldInactive="navInactive:{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:'#fff'}";
+          const newInactive="navInactive:{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:'#f6f6f8'}";
 
-          // Force the actual BottomNav root container to light grey without changing the page behind it.
-          const bottomNavFn=/function BottomNav\(([^)]*)\)\{([\s\S]*?)return<View style=\{s\.([A-Za-z0-9_]+)\}>/;
-          const match=s.match(bottomNavFn);
-          if(match){
-            const styleKey=match[3];
-            const old=`return<View style={s.${styleKey}}>`;
-            const neu=`return<View style={[s.${styleKey},{backgroundColor:'#f1f1f4'}]}>`;
-            if(s.includes(old)){s=s.replace(old,neu);changed=true;}
-          }
+          if(!s.includes(oldBottom)) throw new Error('bottomNav style not found exactly');
+          if(!s.includes(oldInactive)) throw new Error('navInactive style not found exactly');
 
-          // Fallback for arrow-body BottomNav implementations.
-          if(!changed || !/backgroundColor:'#f1f1f4'/.test(s)){
-            const re=/(const BottomNav=.*?=>)<View style=\{s\.([A-Za-z0-9_]+)\}>/s;
-            if(re.test(s)){s=s.replace(re,(m,a,k)=>`${a}<View style={[s.${k},{backgroundColor:'#f1f1f4'}]}>`);changed=true;}
-          }
-
-          if(!changed) throw new Error('Could not locate bottom navigation anchors');
+          s=s.replace(oldBottom,newBottom).replace(oldInactive,newInactive);
           fs.writeFileSync(p,s);
+          console.log('Applied exact inversion: white behind, light-grey menu cells');
           NODE
-      - run: npm ci
-      - run: npx tsc --noEmit
-      - name: Commit
+      - name: Commit changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/MainApp.tsx
-          git diff --cached --quiet || git commit -m "Fix bottom navigation color inversion"
+          git diff --cached --quiet || git commit -m "Invert bottom navigation colors correctly"
           git push
