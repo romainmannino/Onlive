@@ -1,0 +1,47 @@
+name: Fix admin program live sync
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-admin-program-live-sync.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Patch program ordering and refresh
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p=Path('src/tvPrograms.ts')
+          s=p.read_text()
+          s=s.replace("  featured?: boolean;\n};", "  featured?: boolean;\n  featured_order?: number | null;\n};")
+          s=s.replace("channel_logo_url,featured')", "channel_logo_url,featured,featured_order')")
+          s=s.replace("      featured: Boolean(row.featured),\n    };", "      featured: Boolean(row.featured),\n      featured_order: row.featured_order == null ? null : Number(row.featured_order),\n    };")
+          p.write_text(s)
+
+          p=Path('src/MainApp.tsx')
+          s=p.read_text()
+          marker="  async function loadOwnProfile(uid:string){"
+          inject="""  useEffect(()=>{\n    if(!userId||screen!=='home'||reviewMode)return;\n    let cancelled=false;\n    const refresh=async()=>{\n      try{\n        const data=await fetchTvPrograms();\n        if(cancelled||!data.length)return;\n        setPrograms(data);\n        setProgramSource('supabase');\n        AsyncStorage.setItem(PROGRAMS_CACHE_KEY,JSON.stringify(data)).catch(()=>{});\n      }catch{}\n    };\n    refresh();\n    const timer=setInterval(refresh,10000);\n    return()=>{cancelled=true;clearInterval(timer)};\n  },[userId,screen,reviewMode]);\n\n"""
+          if inject not in s:
+              s=s.replace(marker, inject+marker)
+          p.write_text(s)
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/tvPrograms.ts src/MainApp.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Fix admin program edits sync in app"
+          git push
