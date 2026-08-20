@@ -1,0 +1,64 @@
+name: Fix admin login
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-admin-login.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch admin login
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('public/admin.html')
+          s=p.read_text()
+          s=s.replace('onclick="login()"','onclick="doLogin()"')
+          old="async function login(){const s=document.getElementById('loginStatus');s.textContent='Connexion…';const {data,error}=await sb.auth.signInWithPassword({email:email.value.trim(),password:password.value});if(error){s.textContent=error.message;s.className='status err';return}await boot()}"
+          new="""async function doLogin(){
+            const statusEl=document.getElementById('loginStatus');
+            const emailEl=document.getElementById('email');
+            const passwordEl=document.getElementById('password');
+            statusEl.textContent='Connexion…';statusEl.className='status';
+            try{
+              const authPromise=sb.auth.signInWithPassword({email:emailEl.value.trim(),password:passwordEl.value});
+              const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error('Connexion trop longue. Réessaie dans quelques secondes.')),15000));
+              const {data,error}=await Promise.race([authPromise,timeout]);
+              if(error)throw error;
+              if(!data?.session)throw new Error('Session non créée.');
+              statusEl.textContent='Vérification administrateur…';
+              await boot();
+            }catch(e){statusEl.textContent=e?.message||'Erreur de connexion';statusEl.className='status err';}
+          }"""
+          if old not in s:
+            raise SystemExit('login function pattern not found')
+          s=s.replace(old,new)
+          old2="async function boot(){const {data:adm,error}=await sb.rpc('is_onlive_admin');if(error||!adm){await sb.auth.signOut();loginStatus.textContent='Ce compte n’est pas administrateur.';loginStatus.className='status err';return}login.classList.add('hidden');app.classList.remove('hidden');await Promise.all([loadStats(),loadPrograms()])}"
+          new2="""async function boot(){
+            const loginEl=document.getElementById('login');
+            const appEl=document.getElementById('app');
+            const statusEl=document.getElementById('loginStatus');
+            try{
+              const {data:adm,error}=await sb.rpc('is_onlive_admin');
+              if(error)throw error;
+              if(!adm){await sb.auth.signOut();statusEl.textContent='Ce compte n’est pas administrateur.';statusEl.className='status err';return;}
+              loginEl.classList.add('hidden');appEl.classList.remove('hidden');
+              await Promise.all([loadStats(),loadPrograms()]);
+            }catch(e){statusEl.textContent=e?.message||'Erreur pendant la vérification administrateur.';statusEl.className='status err';}
+          }"""
+          if old2 not in s:
+            raise SystemExit('boot function pattern not found')
+          s=s.replace(old2,new2)
+          p.write_text(s)
+          PY
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/admin.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Fix Safari admin login and DOM references"
+          git push
