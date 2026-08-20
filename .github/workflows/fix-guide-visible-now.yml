@@ -14,34 +14,34 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Ensure channel logo support
+      - name: Polish guide rows and sport detection
         run: |
           python - <<'PY'
           from pathlib import Path
+          p=Path('src/MainApp.tsx')
+          s=p.read_text()
 
-          tv=Path('src/tvPrograms.ts')
-          s=tv.read_text()
-          marker="export const FALLBACK_PROGRAMS: Program[] = ["
-          helper="""function channelLogoFallback(channel='') {\n  const c=channel.toLowerCase();\n  const domain = c.includes('france 2') ? 'france.tv' : c.includes('m6') ? 'm6.fr' : c.includes('tmc') ? 'tf1.fr' : c.includes('équipe') || c.includes('equipe') ? 'lequipe.fr' : c.includes('bein') ? 'bein.com' : c.includes('canal+') ? 'canalplus.com' : c.includes('rmc sport') ? 'rmcsport.bfmtv.com' : c.includes('6ter') ? '6play.fr' : c.includes('ligue 1+') ? 'ligue1.com' : '';\n  return domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=128` : undefined;\n}\n\n"""
-          if 'function channelLogoFallback' not in s:
-              s=s.replace(marker, helper+marker)
-          s=s.replace("channelLogo: row.channel_logo_url || undefined,","channelLogo: row.channel_logo_url || channelLogoFallback(row.channel),")
-          tv.write_text(s)
+          old="<View style={{width:62,height:28,alignItems:'flex-start',justifyContent:'center'}}>{item.channelLogo?<Image source={{uri:item.channelLogo}} resizeMode=\"contain\" style={{width:52,height:22}}/>:<Text style={{width:62,fontSize:10.5,fontWeight:'800',color:'#555'}} numberOfLines={1}>{item.channel}</Text>}</View>"
+          new="<View style={{width:68,height:42,alignItems:'center',justifyContent:'center'}}>{item.channelLogo?<><Image source={{uri:item.channelLogo}} resizeMode=\"contain\" style={{width:38,height:22}}/><Text style={{marginTop:2,width:66,textAlign:'center',fontSize:8.5,fontWeight:'700',color:'#777'}} numberOfLines={1}>{item.channel}</Text></>:<Text style={{width:66,textAlign:'center',fontSize:9.5,fontWeight:'800',color:'#555'}} numberOfLines={2}>{item.channel}</Text>}</View>"
+          if old in s:
+              s=s.replace(old,new,1)
 
-          app=Path('src/MainApp.tsx')
-          a=app.read_text()
-          if 'item.channelLogo?<Image' not in a:
-              old="<Text style={{width:62,fontSize:11,fontWeight:'800',color:'#555'}} numberOfLines={1}>{item.channel}</Text>"
-              new="<View style={{width:62,height:28,alignItems:'flex-start',justifyContent:'center'}}>{item.channelLogo?<Image source={{uri:item.channelLogo}} resizeMode=\"contain\" style={{width:52,height:22}}/>:<Text style={{width:62,fontSize:10.5,fontWeight:'800',color:'#555'}} numberOfLines={1}>{item.channel}</Text>}</View>"
-              if old in a:
-                  a=a.replace(old,new,1)
-                  app.write_text(a)
+          marker="function sportType(p:Program){const t="
+          replacement="function sportType(p:Program){const cat=String(p.category||'').toLowerCase();if(cat==='rugby')return'Rugby';if(cat==='basket')return'Basket';if(cat==='handball')return'Handball';if(cat==='cyclisme')return'Cyclisme';if(cat==='golf')return'Golf';if(cat==='natation')return'Natation';if(cat==='athlétisme'||cat==='athletisme')return'Athlétisme';if(cat==='mma'||cat==='boxe')return'Sports de combat';if(cat==='f1 / auto')return'F1 / Auto';const t="
+          if marker in s and "const cat=String(p.category||'').toLowerCase()" not in s:
+              s=s.replace(marker,replacement,1)
+
+          p.write_text(s)
           PY
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
       - name: Commit changes
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/tvPrograms.ts src/MainApp.tsx
+          git add src/MainApp.tsx
           git diff --cached --quiet && exit 0
-          git commit -m 'Ensure guide channel logos are supported'
+          git commit -m 'Show channel names below logos and improve sport filters'
           git push
