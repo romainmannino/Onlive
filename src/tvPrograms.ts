@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 
-export type ProgramCategory = 'Divertissement' | 'Film' | 'Série' | 'Sport' | 'Foot';
+export type ProgramCategory = 'Divertissement' | 'Documentaire' | 'Film' | 'Série' | 'Sport' | 'Foot' | 'Tennis';
 
 export type Program = {
   id: string;
@@ -10,6 +10,8 @@ export type Program = {
   time: string;
   image: string;
   isLive?: boolean;
+  source?: string;
+  date?: string;
 };
 
 const CATEGORY_FALLBACKS: Record<ProgramCategory,string> = {
@@ -50,13 +52,8 @@ function isGenericImage(image?:string|null){
   return !image || GENERIC_IMAGE_MARKERS.some(marker=>image.includes(marker));
 }
 
-export function resolveProgramImage(title:string,category:ProgramCategory,image?:string|null){
-  const normalized=cleanTitle(title);
-  const known=PROGRAM_IMAGE_RULES.find(rule=>rule.match.test(normalized));
-  if(known)return known.image;
-  if(image&&image.trim())return image.trim();
-  return CATEGORY_FALLBACKS[category] || CATEGORY_FALLBACKS.Divertissement;
-}
+function artworkPath(title:string,category:ProgramCategory){const t=cleanTitle(title).toLowerCase();if(category==='Foot'||/football|ligue 1|champions league|europa league|premier league|bundesliga|psg|marseille|lens|auxerre/.test(t))return'programs/football.PNG';if(category==='Tennis'||/tennis|wta|atp|roland|wimbledon|cincinnati/.test(t))return'programs/tennis.PNG';if(/basket|nba|euroleague/.test(t))return'programs/basket.PNG';if(/rugby|top 14|six nations/.test(t))return'programs/rugby.PNG';if(/cycl|tour de france|giro|vuelta/.test(t))return'programs/cyclisme.PNG';if(/formule 1|formula 1|\bf1\b|grand prix/.test(t))return'programs/formule 1.PNG';if(/natation|swim/.test(t))return'programs/natation.PNG';if(/\bmma\b|ufc/.test(t))return'programs/mma.PNG';if(/boxe|boxing/.test(t))return'programs/boxe.PNG';if(/athlet/.test(t))return'programs/athletisme.PNG';if(/handball/.test(t))return'programs/handball.PNG';if(/golf/.test(t))return'programs/golf (6).PNG';if(category==='Documentaire')return'programs/documentaire.PNG';if(category==='Film')return'programs/film.PNG';if(category==='Série')return'programs/serie.PNG';return'programs/divertissement.PNG'}
+export function resolveProgramImage(title:string,category:ProgramCategory,_image?:string|null){return supabase.storage.from('program-artworks').getPublicUrl(artworkPath(title,category)).data.publicUrl}
 
 export const FALLBACK_PROGRAMS: Program[] = [
   { id:'tf1-1', title:'Une famille en or', channel:'TF1', category:'Divertissement', time:'21:10', image:resolveProgramImage('Une famille en or','Divertissement') },
@@ -74,7 +71,7 @@ export const parisDate = () => new Intl.DateTimeFormat('en-CA', {
 export async function fetchTvPrograms(date = parisDate()): Promise<Program[]> {
   const { data, error } = await supabase
     .from('tv_programs')
-    .select('id,title,channel,category,start_time,image_url,is_live')
+    .select('id,title,channel,category,start_time,image_url,is_live,source,program_date')
     .eq('program_date', date)
     .order('start_time', { ascending: true });
 
@@ -112,6 +109,8 @@ export async function fetchTvPrograms(date = parisDate()): Promise<Program[]> {
       time: String(row.start_time).slice(0,5),
       image: resolveProgramImage(row.title,category,serverImage || row.image_url),
       isLive: Boolean(row.is_live),
+      source: row.source || '',
+      date: row.program_date || date,
     };
   });
 }
