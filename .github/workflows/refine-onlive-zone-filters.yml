@@ -1,0 +1,77 @@
+name: Refine Onlive zone and compact guide filters
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/refine-onlive-zone-filters.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Refine Onlive zone and filters
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const p='src/MainApp.tsx';
+          let s=fs.readFileSync(p,'utf8');
+          let changed=false;
+
+          // White social zone: rounded top corners and tall enough to continue behind bottom navigation.
+          const oldLive="<View style={[s.liveZone,{minHeight:Math.max(340,height*.46)}]}>";
+          const newLive="<View style={[s.liveZone,{minHeight:Math.max(520,height*.64)}]}>";
+          if(s.includes(oldLive)){s=s.replace(oldLive,newLive);changed=true;}
+
+          const oldLiveStyle="liveZone:{backgroundColor:'#fff',marginHorizontal:-14,paddingHorizontal:14,paddingTop:6,paddingBottom:28,marginTop:4}";
+          const newLiveStyle="liveZone:{backgroundColor:'#fff',marginHorizontal:-14,paddingHorizontal:14,paddingTop:12,paddingBottom:130,marginTop:4,borderTopLeftRadius:28,borderTopRightRadius:28,overflow:'hidden'}";
+          if(s.includes(oldLiveStyle)){s=s.replace(oldLiveStyle,newLiveStyle);changed=true;}
+
+          // Explicit white layer behind the floating bottom navigation on Home.
+          const navAnchor="</View></ScrollView><BottomNav active=\"home\"";
+          const navReplacement="</View></ScrollView><View pointerEvents=\"none\" style={{position:'absolute',left:0,right:0,bottom:0,height:112,backgroundColor:'#fff'}}/><BottomNav active=\"home\"";
+          if(s.includes(navAnchor) && !s.includes("height:112,backgroundColor:'#fff'}}/><BottomNav active=\"home\"")){s=s.replace(navAnchor,navReplacement);changed=true;}
+
+          // Make the floating nav itself light grey where its style key can be identified.
+          const navStylePatterns=[
+            [/bottomNav:\{([^}]*?)backgroundColor:'#fff'/, "bottomNav:{$1backgroundColor:'#f6f6f8'"],
+            [/bottomBar:\{([^}]*?)backgroundColor:'#fff'/, "bottomBar:{$1backgroundColor:'#f6f6f8'"],
+            [/navBar:\{([^}]*?)backgroundColor:'#fff'/, "navBar:{$1backgroundColor:'#f6f6f8'"]
+          ];
+          for(const [re,repl] of navStylePatterns){if(re.test(s)){s=s.replace(re,repl);changed=true;break;}}
+
+          // Compact main guide filters.
+          const oldFilterScroll="contentContainerStyle={{gap:8,paddingBottom:8}}>{FILTERS.map";
+          const newFilterScroll="contentContainerStyle={{gap:5,paddingBottom:7}}>{FILTERS.map";
+          if(s.includes(oldFilterScroll)){s=s.replace(oldFilterScroll,newFilterScroll);changed=true;}
+
+          const oldFilterStyle="style={[s.filterChip,filter===item&&s.filterChipActive,{borderWidth:1,borderColor:'#e4e4e9'}]}><Text style={[s.filterText,filter===item&&s.filterTextActive]}>{item}</Text>";
+          const newFilterStyle="style={[s.filterChip,filter===item&&s.filterChipActive,{borderWidth:1,borderColor:'#e4e4e9',paddingHorizontal:11,paddingVertical:6,minHeight:32}]}><Text style={[s.filterText,filter===item&&s.filterTextActive,{fontSize:12}]}>{item}</Text>";
+          if(s.includes(oldFilterStyle)){s=s.replace(oldFilterStyle,newFilterStyle);changed=true;}
+
+          // Compact sport sub-filters too.
+          const oldSportStyle="style={[s.sportChip,sportFilter===item&&s.sportChipActive]}><Text style={[s.sportChipText,sportFilter===item&&s.sportChipTextActive]}>{item}</Text>";
+          const newSportStyle="style={[s.sportChip,sportFilter===item&&s.sportChipActive,{paddingHorizontal:10,paddingVertical:6,minHeight:31}]}><Text style={[s.sportChipText,sportFilter===item&&s.sportChipTextActive,{fontSize:11.5}]}>{item}</Text>";
+          if(s.includes(oldSportStyle)){s=s.replace(oldSportStyle,newSportStyle);changed=true;}
+
+          if(!changed) throw new Error('No matching Home UI anchors found');
+          fs.writeFileSync(p,s);
+          NODE
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx
+          git diff --cached --quiet || git commit -m "Refine Onlive white zone and compact guide filters"
+          git push
