@@ -1,0 +1,61 @@
+name: Invert Home sections clean
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/invert-home-sections-clean.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply clean Home section inversion
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const p='src/MainApp.tsx';
+          let s=fs.readFileSync(p,'utf8');
+
+          // Whole Home underlay/social area = light grey.
+          s=s.replace("<SafeAreaView style={[s.screen,{backgroundColor:'#fff'}]}>","<SafeAreaView style={s.screen}>");
+          s=s.replace(/screen:\{flex:1,backgroundColor:'#[0-9a-fA-F]{3,6}'\}/,"screen:{flex:1,backgroundColor:'#f6f6f8'}");
+
+          // Upper personal/program section = white.
+          s=s.replace(/homeContent:\{padding:14,paddingBottom:92(?:,backgroundColor:'#[0-9a-fA-F]{3,6}')?\}/,"homeContent:{padding:14,paddingBottom:92,backgroundColor:'#fff'}");
+          s=s.replace(/onliveTopBar:\{height:54\+\(Platform\.OS==='android'\?\(NativeStatusBar\.currentHeight\|\|0\):0\),paddingTop:Platform\.OS==='android'\?\(NativeStatusBar\.currentHeight\|\|0\):0,backgroundColor:'#[0-9a-fA-F]{3,6}'/,"onliveTopBar:{height:54+(Platform.OS==='android'?(NativeStatusBar.currentHeight||0):0),paddingTop:Platform.OS==='android'?(NativeStatusBar.currentHeight||0):0,backgroundColor:'#fff'");
+          s=s.replace("backgroundColor:'transparent',paddingHorizontal:14,flexDirection:'row'","backgroundColor:'#fff',paddingHorizontal:14,flexDirection:'row'");
+
+          // Social zone = light grey all the way down. Rounded top corners create the white upper-card bottom curve.
+          s=s.replace(/liveZone:\{backgroundColor:'#[0-9a-fA-F]{3,6}'[^}]*\}/,"liveZone:{backgroundColor:'#f6f6f8',marginHorizontal:-14,paddingHorizontal:14,paddingTop:14,paddingBottom:190,marginTop:-2,borderTopLeftRadius:28,borderTopRightRadius:28,overflow:'hidden',minHeight:520}");
+
+          // Social content cards return to white for contrast.
+          s=s.replace(/friendsCard:\{backgroundColor:'#[0-9a-fA-F]{3,6}'/,"friendsCard:{backgroundColor:'#fff'");
+          s=s.replace(/emptyFriends:\{backgroundColor:'#[0-9a-fA-F]{3,6}'/,"emptyFriends:{backgroundColor:'#fff'");
+          s=s.replace(/liveSearchBox:\{height:42,borderRadius:14,backgroundColor:'#[0-9a-fA-F]{3,6}'/,"liveSearchBox:{height:42,borderRadius:14,backgroundColor:'#fff'");
+          s=s.replace(/liveSearchButton:\{width:34,height:34,borderRadius:17,backgroundColor:'#[0-9a-fA-F]{3,6}'/,"liveSearchButton:{width:34,height:34,borderRadius:17,backgroundColor:'#fff'");
+
+          // Bottom nav sits inside the grey lower zone but the bar itself is white.
+          s=s.replace(/bottomNav:\{position:'absolute',left:0,right:0,bottom:0,height:78,backgroundColor:'#[0-9a-fA-F]{3,6}',flexDirection:'row'\}/,"bottomNav:{position:'absolute',left:0,right:0,bottom:0,height:78,backgroundColor:'#fff',flexDirection:'row'}");
+          s=s.replace(/navInactive:\{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:'#[0-9a-fA-F]{3,6}'\}/,"navInactive:{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:'#fff'}");
+
+          fs.writeFileSync(p,s);
+          NODE
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx
+          git diff --cached --quiet || git commit -m "Invert Home upper and social section backgrounds"
+          git push
