@@ -106,11 +106,36 @@ export function resolveProgramImage(title:string,category:ProgramCategory,image?
   return supabase.storage.from('program-artworks').getPublicUrl(artworkPath(title,category)).data.publicUrl;
 }
 
+const CHANNEL_LOGOS:Record<string,string>={
+  'tf1':'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/tf1-fr.png',
+  'france 2':'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/france-2-fr.png',
+  'france 3':'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/france-3-fr.png',
+  'france 4':'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/france-4-fr.png',
+  'france 5':'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/france-5-fr.png',
+  'm6':'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/m6-fr.png',
+  'arte':'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/arte-fr.png',
+  'w9':'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/w9-fr.png',
+  'tmc':'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/tmc-fr.png',
+  'tfx':'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/tfx-fr.png',
+  'gulli':'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/gulli-fr.png',
+  '6ter':'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/6ter-fr.png',
+  'l’équipe':'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/lequipe-fr.png',
+  'lequipe':'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/lequipe-fr.png',
+  'canal+':'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/canal-plus-fr.png',
+  'ligue 1+':'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/ligue-1plus-fr.png',
+  'bein sports 1':'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/bein-sports-1-french-fr.png',
+  'bein sports 2':'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/bein-sports-2-french-fr.png',
+  'bein sports 3':'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/bein-sports-3-french-fr.png',
+  'rmc sport 1':'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/rmc-sport-1-fr.png',
+  'eurosport 1':'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/eurosport-1-fr.png'
+};
+
 function channelLogoFallback(channel='') {
-  const c=channel.toLowerCase();
-  const domain = c.includes('france 2') ? 'france.tv' : c.includes('m6') ? 'm6.fr' : c.includes('tmc') ? 'tf1.fr' : c.includes('équipe') || c.includes('equipe') ? 'lequipe.fr' : c.includes('bein') ? 'bein.com' : c.includes('canal+') ? 'canalplus.com' : c.includes('rmc sport') ? 'rmcsport.bfmtv.com' : c.includes('6ter') ? '6play.fr' : c.includes('ligue 1+') ? 'ligue1.com' : '';
-  return domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=128` : undefined;
-}
+    const c=channel.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+    const exact=Object.entries(CHANNEL_LOGOS).find(([k])=>k.normalize('NFD').replace(/[\u0300-\u036f]/g,'')===c)?.[1];
+    const fuzzy=Object.entries(CHANNEL_LOGOS).find(([k])=>c.includes(k.normalize('NFD').replace(/[\u0300-\u036f]/g,''))||k.normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes(c))?.[1];
+    return exact||fuzzy;
+  }
 
 export const FALLBACK_PROGRAMS: Program[] = [
   { id:'tf1-1', title:'Une famille en or', channel:'TF1', category:'Divertissement', time:'21:10', image:resolveProgramImage('Une famille en or','Divertissement') },
