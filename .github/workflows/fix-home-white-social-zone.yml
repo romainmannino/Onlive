@@ -1,0 +1,66 @@
+name: Fix Home white social zone
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/fix-home-white-social-zone.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Patch Home layout directly
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const p='src/MainApp.tsx';
+          let s=fs.readFileSync(p,'utf8');
+
+          // Home only: root is white so the area behind the fixed bottom nav is really white.
+          const topMarker='<View style={s.onliveTopBar}>';
+          const markerPos=s.indexOf(topMarker);
+          if(markerPos<0) throw new Error('Home top bar marker not found');
+          const safe='<SafeAreaView style={s.screen}>';
+          const safePos=s.lastIndexOf(safe,markerPos);
+          if(safePos>=0){
+            s=s.slice(0,safePos)+"<SafeAreaView style={[s.screen,{backgroundColor:'#fff'}]}>"+s.slice(safePos+safe.length);
+          }
+
+          // Grey upper personal/program zone; white social zone below.
+          s=s.replace("homeContent:{padding:14,paddingBottom:92}","homeContent:{padding:14,paddingBottom:92,backgroundColor:'#f6f6f8'}");
+          s=s.replace("backgroundColor:'transparent',paddingHorizontal:14,flexDirection:'row'","backgroundColor:'#f6f6f8',paddingHorizontal:14,flexDirection:'row'");
+          s=s.replace(/liveZone:\{backgroundColor:'#fff'[^}]*\}/,"liveZone:{backgroundColor:'#fff',marginHorizontal:-14,paddingHorizontal:14,paddingTop:10,paddingBottom:180,marginTop:-2,borderTopLeftRadius:24,borderTopRightRadius:24,overflow:'hidden',minHeight:420}");
+
+          // Bottom nav itself must be light grey, while its underlay/root stays white.
+          s=s.replace(/bottomNav:\{position:'absolute',left:0,right:0,bottom:0,height:78,backgroundColor:'#[0-9a-fA-F]{3,6}',flexDirection:'row'\}/,"bottomNav:{position:'absolute',left:0,right:0,bottom:0,height:78,backgroundColor:'#f1f1f4',flexDirection:'row'}");
+          s=s.replace(/navInactive:\{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:'#[0-9a-fA-F]{3,6}'\}/,"navInactive:{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:'#f1f1f4'}");
+
+          // Compact guide filters.
+          s=s.replace(/filtersRow:\{gap:\d+,paddingTop:14,paddingBottom:8\}/,"filtersRow:{gap:5,paddingTop:12,paddingBottom:7}");
+          s=s.replace(/filterChip:\{backgroundColor:'#fff',paddingHorizontal:\d+,paddingVertical:\d+,borderRadius:\d+\}/,"filterChip:{backgroundColor:'#fff',paddingHorizontal:11,paddingVertical:7,borderRadius:16}");
+          s=s.replace(/filterText:\{fontWeight:'700',color:'#666'\}/,"filterText:{fontSize:12,fontWeight:'700',color:'#666'}");
+          s=s.replace(/sportsRow:\{gap:\d+,paddingBottom:12\}/,"sportsRow:{gap:5,paddingBottom:10}");
+          s=s.replace(/sportChip:\{backgroundColor:'#ececf1',paddingHorizontal:\d+,paddingVertical:\d+,borderRadius:\d+\}/,"sportChip:{backgroundColor:'#ececf1',paddingHorizontal:10,paddingVertical:7,borderRadius:15}");
+          s=s.replace(/sportChipText:\{fontSize:\d+,fontWeight:'800',color:'#666'\}/,"sportChipText:{fontSize:11,fontWeight:'800',color:'#666'}");
+
+          fs.writeFileSync(p,s);
+          NODE
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx
+          git diff --cached --quiet || git commit -m "Fix Home social zone background and compact filters"
+          git push
