@@ -1,0 +1,39 @@
+name: Fix viewer count across duplicate program ids
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-viewer-count-semantic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Patch viewer count
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('src/MainApp.tsx')
+          s=p.read_text()
+          old="const viewerCounts=useMemo(()=>{const counts=liveFriends.reduce<Record<string,number>>((acc,f)=>{if(f.programId)acc[f.programId]=(acc[f.programId]||0)+1;return acc},{});if(selectedProgram?.id)counts[selectedProgram.id]=(counts[selectedProgram.id]||0)+1;return counts},[liveFriends,selectedProgram]);"
+          new="const viewerCounts=useMemo(()=>{const norm=(v='')=>v.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().trim();return programs.reduce<Record<string,number>>((acc,p)=>{const friends=liveFriends.filter(f=>f.programId===p.id||(norm(f.program)===norm(p.title)&&norm(f.channel)===norm(p.channel))).length;const me=selectedProgram&&(selectedProgram.id===p.id||(norm(selectedProgram.title)===norm(p.title)&&norm(selectedProgram.channel)===norm(p.channel)))?1:0;const total=friends+me;if(total>0)acc[p.id]=total;return acc},{})},[programs,liveFriends,selectedProgram]);"
+          if old not in s:
+            raise SystemExit('viewerCounts anchor not found')
+          s=s.replace(old,new,1)
+          p.write_text(s)
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Count self and contacts on same visible program"
+          git push
