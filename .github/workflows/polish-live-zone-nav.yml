@@ -1,0 +1,50 @@
+name: Polish live zone spacing and bottom navigation
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/polish-live-zone-nav.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Polish Home live zone
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const p='src/MainApp.tsx';
+          let s=fs.readFileSync(p,'utf8');
+          let changed=false;
+
+          // Softer top corners and slightly tighter separation from the programme area.
+          s=s.replace(/liveZone:\{backgroundColor:'#fff',marginHorizontal:-14,paddingHorizontal:14,paddingTop:12,paddingBottom:130,marginTop:4,borderTopLeftRadius:28,borderTopRightRadius:28,overflow:'hidden'\}/g,()=>{changed=true;return "liveZone:{backgroundColor:'#fff',marginHorizontal:-14,paddingHorizontal:14,paddingTop:10,paddingBottom:150,marginTop:-2,borderTopLeftRadius:22,borderTopRightRadius:22,overflow:'hidden'}"});
+
+          // The page layer behind the floating Home navigation stays white; the floating navigation itself becomes light grey.
+          for(const key of ['bottomNav','bottomBar','navBar','nav']){
+            const re=new RegExp(key+":\\{([^}]*?)backgroundColor:'#fff'");
+            if(re.test(s)){s=s.replace(re,key+":{$1backgroundColor:'#f3f3f6'");changed=true;break;}
+          }
+          // Also catch the common inline BottomNav wrapper style.
+          s=s.replace(/backgroundColor:'#fff',borderRadius:([0-9]+)/g,(m,r)=>{changed=true;return `backgroundColor:'#f3f3f6',borderRadius:${r}`});
+
+          if(!changed) throw new Error('No matching UI anchors found');
+          fs.writeFileSync(p,s);
+          NODE
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx
+          git diff --cached --quiet || git commit -m "Polish live zone spacing and bottom navigation"
+          git push
