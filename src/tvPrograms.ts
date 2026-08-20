@@ -59,6 +59,12 @@ function isGenericImage(image?:string|null){
 function artworkPath(title:string,category:ProgramCategory){const t=cleanTitle(title).toLowerCase();if(category==='Foot'||/football|ligue 1|champions league|europa league|premier league|bundesliga|psg|marseille|lens|auxerre/.test(t))return'programs/football.PNG';if(category==='Tennis'||/tennis|wta|atp|roland|wimbledon|cincinnati/.test(t))return'programs/tennis.PNG';if(/basket|nba|euroleague/.test(t))return'programs/basket.PNG';if(/rugby|top 14|six nations/.test(t))return'programs/rugby.PNG';if(/cycl|tour de france|giro|vuelta/.test(t))return'programs/cyclisme.PNG';if(/formule 1|formula 1|\bf1\b|grand prix/.test(t))return'programs/formule 1.PNG';if(/natation|swim/.test(t))return'programs/natation.PNG';if(/\bmma\b|ufc/.test(t))return'programs/mma.PNG';if(/boxe|boxing/.test(t))return'programs/boxe.PNG';if(/athlet/.test(t))return'programs/athletisme.PNG';if(/handball/.test(t))return'programs/handball.PNG';if(/golf/.test(t))return'programs/golf (6).PNG';if(category==='Documentaire')return'programs/documentaire.PNG';if(category==='Film')return'programs/film.PNG';if(category==='Série')return'programs/serie.PNG';return'programs/divertissement.PNG'}
 export function resolveProgramImage(title:string,category:ProgramCategory,image?:string|null){if(image&&!isGenericImage(image))return image;return supabase.storage.from('program-artworks').getPublicUrl(artworkPath(title,category)).data.publicUrl}
 
+function channelLogoFallback(channel='') {
+  const c=channel.toLowerCase();
+  const domain = c.includes('france 2') ? 'france.tv' : c.includes('m6') ? 'm6.fr' : c.includes('tmc') ? 'tf1.fr' : c.includes('équipe') || c.includes('equipe') ? 'lequipe.fr' : c.includes('bein') ? 'bein.com' : c.includes('canal+') ? 'canalplus.com' : c.includes('rmc sport') ? 'rmcsport.bfmtv.com' : c.includes('6ter') ? '6play.fr' : c.includes('ligue 1+') ? 'ligue1.com' : '';
+  return domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=128` : undefined;
+}
+
 export const FALLBACK_PROGRAMS: Program[] = [
   { id:'tf1-1', title:'Une famille en or', channel:'TF1', category:'Divertissement', time:'21:10', image:resolveProgramImage('Une famille en or','Divertissement') },
   { id:'f2-1', title:'Capitaine Marleau', channel:'France 2', category:'Série', time:'21:10', image:resolveProgramImage('Capitaine Marleau','Série','https://www.serie-news.com/app/uploads/2026/08/capitaine-marleau-france2-corinne-masiero-14-aout-1-1280x640.webp') },
@@ -119,7 +125,7 @@ export async function fetchTvPrograms(date = parisDate()): Promise<Program[]> {
       isLive: Boolean(row.is_live),
       source: row.source || '',
       date: row.program_date || date,
-      channelLogo: row.channel_logo_url || undefined,
+      channelLogo: row.channel_logo_url || channelLogoFallback(row.channel),
       featured: Boolean(row.featured),
     };
   });
