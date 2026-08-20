@@ -1,0 +1,45 @@
+name: Prime-time selection only
+on:
+  push:
+    paths:
+      - '.github/workflows/prime-time-selection.yml'
+  workflow_dispatch:
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Patch prime-time selection
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('src/MainApp.tsx')
+          s=p.read_text()
+          old="const featuredPrograms=useMemo(()=>{const base=programs.filter(p=>programState(p,now)!=='expired');const explicit=base.filter(p=>(p as any).featured);const editorial=base.filter(p=>(p as any).source!=='xmltvfr');const preferred=explicit.length?explicit:(editorial.length?editorial:base);if(!selectedProgram)return preferred.slice(0,3);return [...preferred].sort((a,b)=>a.id===selectedProgram.id?-1:b.id===selectedProgram.id?1:0).slice(0,3)},[programs,now,selectedProgram]);"
+          new="const featuredPrograms=useMemo(()=>{const prime=programs.filter(p=>{if(programState(p,now)==='expired')return false;const h=Number(String(p.time||'').slice(0,2)),m=Number(String(p.time||'').slice(3,5));const minutes=h*60+m;return minutes>=19*60+30&&minutes<=23*60+30});const ordered=[...prime].sort((a,b)=>{const af=(a as any).featured?1:0,bf=(b as any).featured?1:0;if(af!=bf)return bf-af;const ao=(a as any).featured_order??99,bo=(b as any).featured_order??99;if(ao!=bo)return ao-bo;return String(a.time).localeCompare(String(b.time))});return ordered.slice(0,3)},[programs,now]);"
+          if old not in s:
+              if new in s:
+                  print('Prime-time selection already applied')
+              else:
+                  raise SystemExit('featuredPrograms pattern not found')
+          else:
+              s=s.replace(old,new,1)
+              p.write_text(s)
+          PY
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Commit changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/MainApp.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m 'Show only prime-time programmes in daily selection'
+          git push
