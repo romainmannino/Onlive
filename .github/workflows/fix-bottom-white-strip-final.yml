@@ -1,0 +1,48 @@
+name: Fix bottom white strip final
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/fix-bottom-white-strip-final.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Remove white bottom underlay
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const p='src/MainApp.tsx';
+          let s=fs.readFileSync(p,'utf8');
+
+          const old="<View pointerEvents=\"none\" style={{position:'absolute',left:0,right:0,bottom:0,height:112,backgroundColor:'#fff'}}/>";
+          const next="<View pointerEvents=\"none\" style={{position:'absolute',left:0,right:0,bottom:0,height:112,backgroundColor:'#f6f6f8'}}/>";
+          if(!s.includes(old)) throw new Error('Bottom underlay marker not found');
+          s=s.replace(old,next);
+
+          // Keep the floating bottom navigation white while the area behind it stays light grey.
+          s=s.replace(/bottomNav:\{position:'absolute',left:0,right:0,bottom:0,height:78,backgroundColor:'#[0-9a-fA-F]{3,6}',flexDirection:'row'\}/,"bottomNav:{position:'absolute',left:0,right:0,bottom:0,height:78,backgroundColor:'#fff',flexDirection:'row'}");
+          s=s.replace(/navInactive:\{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:'#[0-9a-fA-F]{3,6}'\}/,"navInactive:{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:'#fff'}");
+
+          fs.writeFileSync(p,s);
+          NODE
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx
+          git diff --cached --quiet || git commit -m "Fix bottom Home underlay color"
+          git push
