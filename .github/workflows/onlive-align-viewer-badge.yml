@@ -1,0 +1,64 @@
+name: Align viewer badge and favorite star
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/onlive-align-viewer-badge.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Patch MainApp
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('src/MainApp.tsx')
+          s=p.read_text()
+          changes=0
+
+          old="<Ionicons name={favorites.length?'star':'star-outline'} size={26} color={favorites.length?'#FFD43B':'#111111'}/>"
+          new="<Ionicons name={favorites.length?'star':'star-outline'} size={22} color={favorites.length?'#FFD43B':'#111111'}/>"
+          if old in s:
+              s=s.replace(old,new,1); changes+=1
+
+          old="viewerCount:{flexDirection:'row',alignItems:'center',gap:3,paddingHorizontal:2}"
+          new="viewerCount:{height:28,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:3,paddingHorizontal:2}"
+          if old in s:
+              s=s.replace(old,new,1); changes+=1
+
+          old="programTopRow:{position:'absolute',top:10,left:10,right:10,flexDirection:'row',justifyContent:'space-between'}"
+          new="programTopRow:{position:'absolute',top:10,left:10,right:10,flexDirection:'row',alignItems:'flex-start',justifyContent:'space-between'}"
+          if old in s:
+              s=s.replace(old,new,1); changes+=1
+
+          if changes == 0:
+              raise SystemExit('No expected anchors found; refusing a blind patch')
+          p.write_text(s)
+          print(f'Applied {changes} UI changes')
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx
+          if git diff --cached --quiet; then
+            echo "Nothing to commit"
+            exit 0
+          fi
+          git commit -m "Polish favorite star and viewer badge alignment"
+          git push
