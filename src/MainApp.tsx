@@ -23,7 +23,7 @@ const CONTACT_FILTERS:['Tous','Onlive','Inviter']=['Tous','Onlive','Inviter'];
 const INVITE_URL='https://github.com/romainmannino/Onlive';
 const LOGO=require('../public/logo horiz.png');
 const SCORE_KEY='@onlive/contact-scores';
-const PROGRAMS_CACHE_KEY='@onlive/tv-programs-cache-v2';
+const PROGRAMS_CACHE_KEY='@onlive/tv-programs-cache-v3';
 const REVIEW_EMAIL='review@onlive-app.com';
 const LOGO_ON=require('../public/logo carre.png');
 const FAVORITES_KEY='@onlive/favorites';
@@ -180,7 +180,7 @@ export default function MainApp({onOpenDiscussions,onStartChat,onOpenAccount,pro
     return()=>{clearInterval(timer);sub.remove()};
   },[userId,screen]);
 
-  const featuredPrograms=useMemo(()=>{const prime=programs.filter(p=>{if(programState(p,now)==='expired')return false;const h=Number(String(p.time||'').slice(0,2)),m=Number(String(p.time||'').slice(3,5));const minutes=h*60+m;return minutes>=19*60+30&&minutes<=23*60+30});const ordered=[...prime].sort((a,b)=>{const af=(a as any).featured?1:0,bf=(b as any).featured?1:0;if(af!=bf)return bf-af;const ao=(a as any).featured_order??99,bo=(b as any).featured_order??99;if(ao!=bo)return ao-bo;return String(a.time).localeCompare(String(b.time))});return ordered.slice(0,3)},[programs,now]);
+  const featuredPrograms=useMemo(()=>{const prime=programs.filter(p=>{if(programState(p,now)==='expired')return false;const h=Number(String(p.time||'').slice(0,2)),m=Number(String(p.time||'').slice(3,5));const minutes=h*60+m;return minutes>=19*60+30&&minutes<=23*60+30});const ordered=[...prime].sort((a,b)=>{const af=(a as any).featured?1:0,bf=(b as any).featured?1:0;if(af!=bf)return bf-af;const ao=(a as any).featuredOrder??99,bo=(b as any).featuredOrder??99;if(ao!=bo)return ao-bo;return String(a.time).localeCompare(String(b.time))});return ordered.slice(0,3)},[programs,now]);
   const visiblePrograms=useMemo(()=>{const featuredIds=new Set(featuredPrograms.map(p=>p.id));const list=programs.filter(p=>programState(p,now)!=='expired'&&!featuredIds.has(p.id)).filter(p=>{if(filter==='Tous')return true;if(filter==='Sport'){const detected=sportType(p);const isSport=p.category==='Sport'||p.category==='Foot'||p.category==='Tennis'||detected!=='Autres';return isSport&&(sportFilter==='Tous'||detected===sportFilter)}return p.category===filter});if(!selectedProgram||featuredIds.has(selectedProgram.id))return list;return [...list].sort((a,b)=>a.id===selectedProgram.id?-1:b.id===selectedProgram.id?1:0)},[filter,sportFilter,programs,now,selectedProgram,featuredPrograms]);
   const phoneContacts=useMemo(()=>deviceContacts.filter(c=>contactPhones(c).length>0),[deviceContacts]);
   const matchMap=useMemo(()=>{const m=new Map<string,Match>();matches.forEach(x=>m.set(x.phone,x));return m},[matches]);

@@ -17,6 +17,7 @@ export type Program = {
   date?: string;
   channelLogo?: string;
   featured?: boolean;
+  featuredOrder?: number;
 };
 
 const CATEGORY_FALLBACKS: Record<ProgramCategory,string> = {
@@ -131,7 +132,7 @@ export async function fetchTvPrograms(date = parisDate()): Promise<Program[]> {
   } catch(e) { console.warn('XMLTV import unavailable',e); }
   const { data, error } = await supabase
     .from('tv_programs')
-    .select('id,title,channel,category,start_time,image_url,is_live,source,program_date,channel_logo_url,featured')
+    .select('id,title,channel,category,start_time,image_url,is_live,source,program_date,channel_logo_url,featured,featured_order')
     .eq('program_date', date)
     .order('start_time', { ascending: true });
 
@@ -173,6 +174,7 @@ export async function fetchTvPrograms(date = parisDate()): Promise<Program[]> {
       date: row.program_date || date,
       channelLogo: row.channel_logo_url || channelLogoFallback(row.channel),
       featured: Boolean(row.featured),
+      featuredOrder: row.featured_order == null ? undefined : Number(row.featured_order),
     };
   });
 }
