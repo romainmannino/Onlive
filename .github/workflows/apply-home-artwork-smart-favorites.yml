@@ -1,0 +1,46 @@
+name: Apply latest Onlive preview polish
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/apply-home-artwork-smart-favorites.js'
+      - '.github/workflows/apply-home-artwork-smart-favorites.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - name: Ensure favorites accordion polish
+        run: |
+          if grep -q "expandedSport" src/MainApp.tsx; then
+            echo "Accordion already applied"
+          else
+            node scripts/apply-favorites-accordion-polish.js
+          fi
+      - name: Apply smart favorites, safe area and artwork
+        run: node scripts/apply-home-artwork-smart-favorites.js
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx src/tvPrograms.ts
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "Polish Android safe area, smart favorites and Supabase artwork"
+          git push
