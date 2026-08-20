@@ -1,0 +1,59 @@
+name: Apply program guide redesign
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/apply-program-guide-redesign.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Patch home program guide
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const path='src/MainApp.tsx';
+          let s=fs.readFileSync(path,'utf8');
+
+          const stateNeedle="const[filter,setFilter]=useState<(typeof FILTERS)[number]>('Tous');const[sportFilter,setSportFilter]=useState<(typeof SPORTS)[number]>('Tous');";
+          const stateReplace=stateNeedle+"const[programGuideOpen,setProgramGuideOpen]=useState(false);";
+          if(!s.includes('programGuideOpen')){
+            if(!s.includes(stateNeedle)) throw new Error('filter state anchor not found');
+            s=s.replace(stateNeedle,stateReplace);
+          }
+
+          const memoNeedle="  const visiblePrograms=useMemo(()=>{const list=programs.filter(p=>programState(p,now)!=='expired').filter(p=>{if(filter==='Tous')return true;if(filter==='Sport'){const detected=sportType(p);const isSport=p.category==='Sport'||p.category==='Foot'||p.category==='Tennis'||detected!=='Autres';return isSport&&(sportFilter==='Tous'||detected===sportFilter)}return p.category===filter});if(!selectedProgram)return list;return [...list].sort((a,b)=>a.id===selectedProgram.id?-1:b.id===selectedProgram.id?1:0)},[filter,sportFilter,programs,now,selectedProgram]);";
+          const memoReplace=memoNeedle+"\n  const featuredPrograms=useMemo(()=>{const list=programs.filter(p=>programState(p,now)!=='expired');if(!selectedProgram)return list.slice(0,4);return [...list].sort((a,b)=>a.id===selectedProgram.id?-1:b.id===selectedProgram.id?1:0).slice(0,4)},[programs,now,selectedProgram]);";
+          if(!s.includes('const featuredPrograms=')){
+            if(!s.includes(memoNeedle)) throw new Error('visiblePrograms anchor not found');
+            s=s.replace(memoNeedle,memoReplace);
+          }
+
+          const start='<Text style={[s.introTitle,attentionFlash&&s.introTitleAttention]}>Choisis ton programme</Text>';
+          const end='<View style={s.liveSectionHead}>';
+          const a=s.indexOf(start), b=s.indexOf(end,a);
+          if(a<0||b<0) throw new Error('home program block anchors not found');
+
+          const block=`<Text style={[s.introTitle,attentionFlash&&s.introTitleAttention]}>Choisis ton programme</Text><Text style={{fontSize:15,fontWeight:'700',color:'#111',marginTop:16,marginBottom:10}}>Notre sélection du jour</Text><FlatList data={featuredPrograms} horizontal scrollEnabled={false} keyExtractor={i=>i.id} contentContainerStyle={{gap:6,width:'100%'}} renderItem={({item})=>{const selected=selectedProgram?.id===item.id,state=programState(item,now),selectable=programSelectable(item,now),theme=programTheme(item),count=viewerCounts[item.id]||0;const cardWidth=Math.max(76,(width-46)/4);return<TouchableOpacity disabled={!selectable} onPress={()=>chooseProgram(item)} style={[s.programCard,{width:cardWidth,height:188,borderRadius:18},selected&&s.programCardSelected,!selectable&&s.programCardLocked]}>{selected&&<LinearGradient colors={['#315CFF','#F000B8']} start={{x:0,y:0}} end={{x:1,y:1}} style={StyleSheet.absoluteFillObject}/>}<View style={s.programCardInner}><View style={s.programVisual}>{item.image?<Image source={{uri:item.image}} resizeMode="cover" style={[StyleSheet.absoluteFillObject,!selectable&&{opacity:.28}]}/>:<LinearGradient colors={selectable?theme.colors:(['#555861','#33353b','#101114'] as const)} locations={[0,.52,1]} style={StyleSheet.absoluteFillObject}/>} {!selectable&&<View style={[StyleSheet.absoluteFillObject,{backgroundColor:'rgba(70,70,75,.48)'}]}/>}</View><LinearGradient colors={['transparent','rgba(0,0,0,.92)']} locations={[.25,1]} style={s.programOverlay}/><View style={[s.programTopRow,{top:8,left:7,right:7}]}><View style={[s.timeBadge,{paddingHorizontal:6,paddingVertical:4}]}><Text style={[s.timeBadgeText,{fontSize:12}]}>{item.time}</Text></View><View style={s.programTopRight}>{count>0&&<View style={s.viewerCount}><Ionicons name="people" size={11} color="#fff"/><Text style={[s.viewerCountText,{fontSize:11}]}>{count}</Text></View>}</View></View><View style={[s.programInfo,{left:8,right:8,bottom:9}]}><Text style={[s.programChannel,{fontSize:10}]} numberOfLines={1}>{item.channel}</Text><Text style={[s.programTitle,{fontSize:13,lineHeight:16}]} numberOfLines={2}>{item.title}</Text></View></View></TouchableOpacity>}}/><TouchableOpacity accessibilityLabel={programGuideOpen?'Fermer tous les programmes':'Voir tous les programmes'} onPress={()=>setProgramGuideOpen(v=>!v)} style={{height:42,alignItems:'center',justifyContent:'center'}}><Ionicons name={programGuideOpen?'chevron-up':'chevron-down'} size={25} color="#6b2cff"/></TouchableOpacity>{programGuideOpen&&<View style={{marginBottom:8}}><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:8,paddingBottom:8}}>{FILTERS.map(item=><TouchableOpacity key={item} onPress={()=>{setFilter(item);if(item!=='Sport')setSportFilter('Tous')}} style={[s.filterChip,filter===item&&s.filterChipActive,{borderWidth:1,borderColor:'#e4e4e9'}]}><Text style={[s.filterText,filter===item&&s.filterTextActive]}>{item}</Text></TouchableOpacity>)}</ScrollView>{filter==='Sport'&&<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.sportsRow}>{SPORTS.map(item=><TouchableOpacity key={item} onPress={()=>setSportFilter(item)} style={[s.sportChip,sportFilter===item&&s.sportChipActive]}><Text style={[s.sportChipText,sportFilter===item&&s.sportChipTextActive]}>{item}</Text></TouchableOpacity>)}</ScrollView>}<View style={{backgroundColor:'#fff',borderRadius:18,overflow:'hidden'}}>{visiblePrograms.map((item,i)=>{const count=viewerCounts[item.id]||0,state=programState(item,now),selectable=programSelectable(item,now),selected=selectedProgram?.id===item.id;return<TouchableOpacity key={item.id} disabled={!selectable} onPress={()=>chooseProgram(item)} style={{minHeight:52,paddingHorizontal:12,flexDirection:'row',alignItems:'center',borderBottomWidth:i<visiblePrograms.length-1?1:0,borderBottomColor:'#ededf1',opacity:selectable?1:.55}}><Text style={{width:62,fontSize:11,fontWeight:'800',color:'#555'}} numberOfLines={1}>{item.channel}</Text><Text style={{width:48,fontSize:13,fontWeight:'800',color:selected?'#6b2cff':'#111'}}>{item.time}</Text><Text style={{flex:1,fontSize:13,fontWeight:selected?'800':'600',color:selected?'#6b2cff':'#111'}} numberOfLines={1}>{item.title}</Text>{count>0&&<View style={{flexDirection:'row',alignItems:'center',gap:3,marginLeft:8}}><Ionicons name="people" size={13} color={selected?'#6b2cff':'#555'}/><Text style={{fontSize:12,fontWeight:'800',color:selected?'#6b2cff':'#555'}}>{count}</Text></View>}{state==='future'&&<Text style={{fontSize:9,fontWeight:'800',color:'#999',marginLeft:7}}>À VENIR</Text>}</TouchableOpacity>})}</View></View>}`;
+          s=s.slice(0,a)+block+s.slice(b);
+          fs.writeFileSync(path,s);
+          NODE
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Redesign home program guide"
+          git push
