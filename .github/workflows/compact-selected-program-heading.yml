@@ -1,0 +1,45 @@
+name: Compact selected program heading
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/compact-selected-program-heading.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Make selected program heading compact
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const p='src/MainApp.tsx';
+          let s=fs.readFileSync(p,'utf8');
+
+          const old="<Text style={[s.introTitle,attentionFlash&&s.introTitleAttention]}>{selectedProgram?`Tu regardes « ${selectedProgram.title} »`:'Choisis ton programme'}</Text>";
+          const neu="{selectedProgram?<View style={{marginTop:2,marginBottom:2}}><Text style={{fontSize:13,fontWeight:'600',color:'#6b2cff',marginBottom:1}}>Tu regardes</Text><Text style={{fontSize:18,lineHeight:21,fontWeight:'800',color:'#6b2cff'}} numberOfLines={2}>« {selectedProgram.title} »</Text><Text style={{fontSize:10.5,color:'#8b6cff',marginTop:2}} numberOfLines={1}>{selectedProgram.category||'Programme'} · {selectedProgram.channel}</Text></View>:<Text style={[s.introTitle,attentionFlash&&s.introTitleAttention]}>Choisis ton programme</Text>}";
+
+          if(s.includes(old)) s=s.replace(old,neu);
+          else if(!s.includes("{selectedProgram.category||'Programme'} · {selectedProgram.channel}")) throw new Error('selected program heading anchor not found');
+
+          fs.writeFileSync(p,s);
+          NODE
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx
+          git diff --cached --quiet || git commit -m "Compact selected program heading"
+          git push
