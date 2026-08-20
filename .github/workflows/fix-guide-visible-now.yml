@@ -1,0 +1,50 @@
+name: Fix guide visible now
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-guide-visible-now.yml'
+  workflow_dispatch:
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Patch tvPrograms channel logo fallbacks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('src/tvPrograms.ts')
+          s=p.read_text()
+          marker="export const FALLBACK_PROGRAMS: Program[] = ["
+          helper="""function channelLogoFallback(channel='') {\n  const c=channel.toLowerCase();\n  const domain = c.includes('france 2') ? 'france.tv' : c.includes('m6') ? 'm6.fr' : c.includes('tmc') ? 'tf1.fr' : c.includes('équipe') || c.includes('equipe') ? 'lequipe.fr' : c.includes('bein') ? 'bein.com' : c.includes('canal+') ? 'canalplus.com' : c.includes('rmc sport') ? 'rmcsport.bfmtv.com' : c.includes('6ter') ? '6play.fr' : c.includes('ligue 1+') ? 'ligue1.com' : '';\n  return domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=128` : undefined;\n}\n\n"""
+          if 'function channelLogoFallback' not in s:
+              s=s.replace(marker, helper+marker)
+          s=s.replace("channelLogo: row.channel_logo_url || undefined,","channelLogo: row.channel_logo_url || channelLogoFallback(row.channel),")
+          p.write_text(s)
+          PY
+      - name: Patch guide rows to display logos
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('src/MainApp.tsx')
+          s=p.read_text()
+          old='<Text style={{width:62,fontSize:11,fontWeight:\'800\',color:\'#555\'}} numberOfLines={1}>{item.channel}</Text>'
+          new="{item.channelLogo?<View style={{width:62,alignItems:'flex-start'}}><Image source={{uri:item.channelLogo}} resizeMode=\"contain\" style={{width:34,height:22}}/></View>:<Text style={{width:62,fontSize:11,fontWeight:'800',color:'#555'}} numberOfLines={1}>{item.channel}</Text>}"
+          if old not in s:
+              raise SystemExit('Guide channel text pattern not found')
+          s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/tvPrograms.ts src/MainApp.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m 'Show channel logos with fallbacks in guide'
+          git push
