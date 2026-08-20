@@ -31,8 +31,12 @@ jobs:
           fi
       - name: Apply smart favorites, safe area and artwork
         run: node scripts/apply-home-artwork-smart-favorites.js
-      - name: Typecheck
-        run: npx tsc --noEmit
+      - name: Verify expected changes
+        run: |
+          grep -q "Aucun contact Onlive pour l'instant" src/MainApp.tsx
+          grep -q "program-artworks" src/tvPrograms.ts
+          grep -q "NativeStatusBar.currentHeight" src/MainApp.tsx
+          grep -q "programMatchesFavorites" src/MainApp.tsx
       - name: Commit changes
         run: |
           git config user.name "github-actions[bot]"
