@@ -141,7 +141,7 @@ export async function fetchTvPrograms(date = parisDate()): Promise<Program[]> {
 
   // Generic/placeholder artwork is enriched server-side. The resolver prefers
   // curated artwork, then sports/event databases or TV metadata, and caches it.
-  const needsArtwork = rows.filter(row=>row.source!=='xmltvfr'||isGenericImage(row.image_url)).slice(0,40);
+  const needsArtwork = rows.filter(row=>isGenericImage(row.image_url)).slice(0,40);
   const resolvedById = new Map<string,string>();
   if (needsArtwork.length) {
     try {
