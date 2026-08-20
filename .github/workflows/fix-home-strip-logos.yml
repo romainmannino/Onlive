@@ -1,0 +1,67 @@
+name: Fix Home strip and channel logos
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/fix-home-strip-logos.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Patch Home fill and logo priority
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const p='src/MainApp.tsx';
+          let s=fs.readFileSync(p,'utf8');
+
+          // Prefer the channel logo coming from Supabase. The old SFR fallback URLs
+          // can fail silently and were masking valid channel_logo_url values.
+          s=s.replace(/const channelLogoFor=\(p:Program\)=>\{const n=normalizeChannel\(p\.channel\);const direct=Object\.entries\(CHANNEL_LOGO_FALLBACK\)\.find\(\(\[k\]\)=>normalizeChannel\(k\)===n\)\?\.\[1\];const fuzzy=Object\.entries\(CHANNEL_LOGO_FALLBACK\)\.find\(\(\[k\]\)=>n\.includes\(normalizeChannel\(k\)\)\|\|normalizeChannel\(k\)\.includes\(n\)\)\?\.\[1\];return direct\|\|fuzzy\|\|\(p as any\)\.channelLogo\|\|''\};/,
+            "const channelLogoFor=(p:Program)=>{const n=normalizeChannel(p.channel);const direct=Object.entries(CHANNEL_LOGO_FALLBACK).find(([k])=>normalizeChannel(k)===n)?.[1];const fuzzy=Object.entries(CHANNEL_LOGO_FALLBACK).find(([k])=>n.includes(normalizeChannel(k))||normalizeChannel(k).includes(n))?.[1];return (p as any).channelLogo||direct||fuzzy||''};");
+
+          // Let the lower social zone actually stretch to the bottom of the screen.
+          s=s.replace(/homeContent:\{padding:14,paddingBottom:92,backgroundColor:'#fff'\}/,"homeContent:{padding:14,paddingBottom:92,backgroundColor:'#fff',flexGrow:1}");
+          s=s.replace(/liveZone:\{backgroundColor:'#f6f6f8',([^}]*)\}/,(m,rest)=>{
+            if(/flexGrow:1/.test(m)) return m;
+            return `liveZone:{backgroundColor:'#f6f6f8',${rest},flexGrow:1}`;
+          });
+
+          fs.writeFileSync(p,s);
+
+          const t='src/tvPrograms.ts';
+          let tv=fs.readFileSync(t,'utf8');
+          const raw=(name)=>`https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/${name}-fr.png`;
+          const map = `const CHANNEL_LOGOS:Record<string,string>={\n  'tf1':'${raw('tf1')}',\n  'france 2':'${raw('france-2')}',\n  'france 3':'${raw('france-3')}',\n  'france 4':'${raw('france-4')}',\n  'france 5':'${raw('france-5')}',\n  'm6':'${raw('m6')}',\n  'arte':'${raw('arte')}',\n  'w9':'${raw('w9')}',\n  'tmc':'${raw('tmc')}',\n  'tfx':'${raw('tfx')}',\n  'gulli':'${raw('gulli')}',\n  '6ter':'${raw('6ter')}',\n  'l’équipe':'${raw('lequipe')}',\n  'lequipe':'${raw('lequipe')}',\n  'canal+':'${raw('canal-plus')}',\n  'ligue 1+':'${raw('ligue-1plus')}',\n  'bein sports 1':'${raw('bein-sports-1-french')}',\n  'bein sports 2':'${raw('bein-sports-2-french')}',\n  'bein sports 3':'${raw('bein-sports-3-french')}',\n  'rmc sport 1':'${raw('rmc-sport-1')}',\n  'eurosport 1':'${raw('eurosport-1')}'\n};\n`;
+          if(!tv.includes('const CHANNEL_LOGOS:Record<string,string>=')){
+            tv=tv.replace('function channelLogoFallback(channel=\'\') {', map+'\nfunction channelLogoFallback(channel=\'\') {');
+          }
+          tv=tv.replace(/function channelLogoFallback\(channel=''\) \{[\s\S]*?\n\}/,
+`function channelLogoFallback(channel='') {
+  const c=channel.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').trim();
+  const exact=Object.entries(CHANNEL_LOGOS).find(([k])=>k.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'')===c)?.[1];
+  const fuzzy=Object.entries(CHANNEL_LOGOS).find(([k])=>c.includes(k.normalize('NFD').replace(/[\\u0300-\\u036f]/g,''))||k.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').includes(c))?.[1];
+  return exact||fuzzy;
+}`);
+          fs.writeFileSync(t,tv);
+          NODE
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx src/tvPrograms.ts
+          git diff --cached --quiet || git commit -m "Fix Home footer fill and restore reliable channel logos"
+          git push
