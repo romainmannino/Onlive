@@ -18,6 +18,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Install dependencies
+        run: npm ci
       - name: Apply notification engine
         run: node scripts/apply-favorite-notification-engine.js
       - name: Typecheck app
@@ -33,4 +35,3 @@ jobs:
             git commit -m "Add favorite start notifications"
             git push
           fi
-# trigger
