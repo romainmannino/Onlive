@@ -1,6 +1,9 @@
 import { supabase } from './supabase';
 
-export type ProgramCategory = 'Divertissement' | 'Documentaire' | 'Film' | 'Série' | 'Sport' | 'Foot' | 'Tennis';
+export type ProgramCategory =
+  | 'Divertissement' | 'Documentaire' | 'Film' | 'Série'
+  | 'Sport' | 'Foot' | 'Tennis' | 'Rugby' | 'Basket' | 'Handball'
+  | 'MMA' | 'Boxe' | 'Athlétisme' | 'Cyclisme' | 'Golf' | 'F1 / Auto' | 'Natation';
 
 export type Program = {
   id: string;
@@ -24,19 +27,39 @@ const CATEGORY_FALLBACKS: Record<ProgramCategory,string> = {
   Sport:'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=900&q=85',
   Foot:'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?auto=format&fit=crop&w=900&q=85',
   Tennis:'https://images.unsplash.com/photo-1595435742656-5272d0b3fa82?auto=format&fit=crop&w=900&q=85',
+  Rugby:'https://images.unsplash.com/photo-1515808266237-4d3d3f384788?auto=format&fit=crop&w=900&q=85',
+  Basket:'https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=900&q=85',
+  Handball:'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=900&q=85',
+  MMA:'https://images.unsplash.com/photo-1549719386-74dfcbf7dbed?auto=format&fit=crop&w=900&q=85',
+  Boxe:'https://images.unsplash.com/photo-1549719386-74dfcbf7dbed?auto=format&fit=crop&w=900&q=85',
+  Athlétisme:'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=900&q=85',
+  Cyclisme:'https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&w=900&q=85',
+  Golf:'https://images.unsplash.com/photo-1535131749006-b7f58c99034b?auto=format&fit=crop&w=900&q=85',
+  'F1 / Auto':'https://images.unsplash.com/photo-1503736334956-4c8f8e92946d?auto=format&fit=crop&w=900&q=85',
+  Natation:'https://images.unsplash.com/photo-1530549387789-4c1017266635?auto=format&fit=crop&w=900&q=85',
 };
 
 // Curated Onlive library. These entries have priority over feed/API artwork so
 // recurring flagship programmes always keep a recognisable, stable visual.
 const PROGRAM_IMAGE_RULES: Array<{match:RegExp,image:string}> = [
-  // Stable programme artwork: Capital branding + Julien Courbet, not an episode/topic photo.
   {match:/^capital\b/i,image:'https://fusion.molotov.tv/arts/i/446x588/Ch8SHQoUbyTZGQah98A_jJCPkVDZbvKxongSA2pwZxgBCh8IARIbChRu-JiZgm8Kj2R4YcqCHzqhL_f5jhIDcG5n/jpg'},
   {match:/\bune famille en or\b/i,image:'https://tf1pro.com/sites/default/files/styles/fiches/public/media-import/Famille%20en%20or%20Ruquier%20Bernier.jpg?itok=AMIwCdSl'},
 ];
 
 const GENERIC_IMAGE_MARKERS = [
+  'commons.wikimedia.org/wiki/Special:Redirect/file/',
   'images.unsplash.com/photo-1579952363873-27f3bade9f55',
   'images.unsplash.com/photo-1461896836934-ffe607ba8211',
+  'images.unsplash.com/photo-1595435742656-5272d0b3fa82',
+  'images.unsplash.com/photo-1595435934249-5df7ed86e1c0',
+  'images.unsplash.com/photo-1546519638-68e109498ffc',
+  'images.unsplash.com/photo-1515808266237-4d3d3f384788',
+  'images.unsplash.com/photo-1549719386-74dfcbf7dbed',
+  'images.unsplash.com/photo-1517649763962-0c623066013b',
+  'images.unsplash.com/photo-1535131749006-b7f58c99034b',
+  'images.unsplash.com/photo-1503736334956-4c8f8e92946d',
+  'images.unsplash.com/photo-1530549387789-4c1017266635',
+  'images.unsplash.com/photo-1570498839593-e565b39455fc',
   'images.unsplash.com/photo-1530137073520-4ea6e2f10a48',
   'images.unsplash.com/photo-1485846234645-a62644f84728',
   'images.unsplash.com/photo-1522869635100-9f4c5e86aa37',
@@ -56,8 +79,31 @@ function isGenericImage(image?:string|null){
   return !image || GENERIC_IMAGE_MARKERS.some(marker=>image.includes(marker));
 }
 
-function artworkPath(title:string,category:ProgramCategory){const t=cleanTitle(title).toLowerCase();if(category==='Foot'||/football|ligue 1|champions league|europa league|premier league|bundesliga|psg|marseille|lens|auxerre/.test(t))return'programs/football.PNG';if(category==='Tennis'||/tennis|wta|atp|roland|wimbledon|cincinnati/.test(t))return'programs/tennis.PNG';if(/basket|nba|euroleague/.test(t))return'programs/basket.PNG';if(/rugby|top 14|six nations/.test(t))return'programs/rugby.PNG';if(/cycl|tour de france|giro|vuelta/.test(t))return'programs/cyclisme.PNG';if(/formule 1|formula 1|\bf1\b|grand prix/.test(t))return'programs/formule 1.PNG';if(/natation|swim/.test(t))return'programs/natation.PNG';if(/\bmma\b|ufc/.test(t))return'programs/mma.PNG';if(/boxe|boxing/.test(t))return'programs/boxe.PNG';if(/athlet/.test(t))return'programs/athletisme.PNG';if(/handball/.test(t))return'programs/handball.PNG';if(/golf/.test(t))return'programs/golf (6).PNG';if(category==='Documentaire')return'programs/documentaire.PNG';if(category==='Film')return'programs/film.PNG';if(category==='Série')return'programs/serie.PNG';return'programs/divertissement.PNG'}
-export function resolveProgramImage(title:string,category:ProgramCategory,image?:string|null){if(image&&!isGenericImage(image))return image;return supabase.storage.from('program-artworks').getPublicUrl(artworkPath(title,category)).data.publicUrl}
+function artworkPath(title:string,category:ProgramCategory){
+  const t=cleanTitle(title).toLowerCase();
+  if(category==='Foot'||/football|ligue 1|champions league|europa league|premier league|bundesliga|psg|marseille|lens|auxerre/.test(t))return'programs/football.PNG';
+  if(category==='Tennis'||/tennis|wta|atp|roland|wimbledon|cincinnati/.test(t))return'programs/tennis.PNG';
+  if(category==='Basket'||/basket|nba|euroleague/.test(t))return'programs/basket.PNG';
+  if(category==='Rugby'||/rugby|top 14|six nations|champions cup|challenge cup|leinster|bordeaux[- ]begles/.test(t))return'programs/rugby.PNG';
+  if(category==='Cyclisme'||/cycl|tour de france|giro|vuelta/.test(t))return'programs/cyclisme.PNG';
+  if(category==='F1 / Auto'||/formule 1|formula 1|\bf1\b|grand prix/.test(t))return'programs/formule 1.PNG';
+  if(category==='Natation'||/natation|swim/.test(t))return'programs/natation.PNG';
+  if(category==='MMA'||/\bmma\b|ufc/.test(t))return'programs/mma.PNG';
+  if(category==='Boxe'||/boxe|boxing/.test(t))return'programs/boxe.PNG';
+  if(category==='Athlétisme'||/athlet|diamond league|meeting/.test(t))return'programs/athletisme.PNG';
+  if(category==='Handball'||/handball/.test(t))return'programs/handball.PNG';
+  if(category==='Golf'||/golf/.test(t))return'programs/golf (6).PNG';
+  if(category==='Documentaire')return'programs/documentaire.PNG';
+  if(category==='Film')return'programs/film.PNG';
+  if(category==='Série')return'programs/serie.PNG';
+  return'programs/divertissement.PNG';
+}
+export function resolveProgramImage(title:string,category:ProgramCategory,image?:string|null){
+  const curated=PROGRAM_IMAGE_RULES.find(rule=>rule.match.test(title));
+  if(curated)return curated.image;
+  if(image&&!isGenericImage(image))return image;
+  return supabase.storage.from('program-artworks').getPublicUrl(artworkPath(title,category)).data.publicUrl;
+}
 
 function channelLogoFallback(channel='') {
   const c=channel.toLowerCase();
@@ -92,8 +138,8 @@ export async function fetchTvPrograms(date = parisDate()): Promise<Program[]> {
   if (error) throw error;
   const rows:any[] = data || [];
 
-  // Ask the server-side resolver only for missing/generic artwork. It caches the
-  // result and also writes it back to tv_programs, so subsequent loads are fast.
+  // Generic/placeholder artwork is enriched server-side. The resolver prefers
+  // curated artwork, then sports/event databases or TV metadata, and caches it.
   const needsArtwork = rows.filter(row=>isGenericImage(row.image_url));
   const resolvedById = new Map<string,string>();
   if (needsArtwork.length) {
@@ -126,7 +172,7 @@ export async function fetchTvPrograms(date = parisDate()): Promise<Program[]> {
       source: row.source || '',
       date: row.program_date || date,
       channelLogo: row.channel_logo_url || channelLogoFallback(row.channel),
-      featured: Boolean(row.featured),
+      featured: Boolean(row.featureed),
     };
   });
 }
