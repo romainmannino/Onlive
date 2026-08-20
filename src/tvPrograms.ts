@@ -172,7 +172,7 @@ export async function fetchTvPrograms(date = parisDate()): Promise<Program[]> {
       source: row.source || '',
       date: row.program_date || date,
       channelLogo: row.channel_logo_url || channelLogoFallback(row.channel),
-      featured: Boolean(row.featureed),
+      featured: Boolean(row.featured),
     };
   });
 }
