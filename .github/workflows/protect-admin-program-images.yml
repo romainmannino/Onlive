@@ -1,0 +1,35 @@
+name: Protect admin program images
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/protect-admin-program-images.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Protect manual images from auto resolver
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const p='src/tvPrograms.ts';
+          let s=fs.readFileSync(p,'utf8');
+          const old="const needsArtwork = rows.filter(row=>row.source!=='xmltvfr'||isGenericImage(row.image_url)).slice(0,40);";
+          const neu="const needsArtwork = rows.filter(row=>isGenericImage(row.image_url)).slice(0,40);";
+          if(s.includes(old)) s=s.replace(old,neu);
+          else if(!s.includes(neu)) throw new Error('needsArtwork pattern not found');
+          fs.writeFileSync(p,s);
+          NODE
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/tvPrograms.ts
+          git diff --cached --quiet || git commit -m "Protect manual admin program images"
+          git push
