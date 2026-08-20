@@ -1,0 +1,61 @@
+name: Polish guide selection labels
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/polish-guide-selection-labels.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Patch guide labels and selected program heading
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const p='src/MainApp.tsx';
+          let s=fs.readFileSync(p,'utf8');
+          let changed=false;
+
+          const oldHeading="<Text style={[s.introTitle,attentionFlash&&s.introTitleAttention]}>Choisis ton programme</Text>";
+          const newHeading="<Text style={[s.introTitle,attentionFlash&&s.introTitleAttention]}>{selectedProgram?`Tu regardes « ${selectedProgram.title} »`:'Choisis ton programme'}</Text>";
+          if(s.includes(oldHeading)){
+            s=s.replace(oldHeading,newHeading);
+            changed=true;
+          }
+
+          const oldGuideTitle="<Text style={{flex:1,fontSize:13,fontWeight:selected?'800':'600',color:selected?'#6b2cff':'#111'}} numberOfLines={1}>{item.title}</Text>";
+          const newGuideTitle="<View style={{flex:1,minWidth:0}}><Text style={{fontSize:13,fontWeight:selected?'800':'600',color:selected?'#6b2cff':'#111'}} numberOfLines={1}>{item.title}</Text><Text style={{fontSize:10,color:selected?'#8b6cff':'#9a9aa2',marginTop:2}} numberOfLines={1}>{item.category||'Programme'}</Text></View>";
+          if(s.includes(oldGuideTitle)){
+            s=s.replace(oldGuideTitle,newGuideTitle);
+            changed=true;
+          } else if(!s.includes("{item.category||'Programme'}</Text></View>")) {
+            const rx=/<Text style=\{\{flex:1,fontSize:13,fontWeight:selected\?'800':'600',color:selected\?'#6b2cff':'#111'\}\} numberOfLines=\{1\}>\{item\.title\}<\/Text>/;
+            if(rx.test(s)){
+              s=s.replace(rx,newGuideTitle);
+              changed=true;
+            }
+          }
+
+          if(!changed) throw new Error('No matching guide UI anchors found; source may have changed');
+          fs.writeFileSync(p,s);
+          NODE
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx
+          git diff --cached --quiet || git commit -m "Show program type in guide and selected program heading"
+          git push
