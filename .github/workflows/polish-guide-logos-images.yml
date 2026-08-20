@@ -14,7 +14,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Patch guide logo labels and artwork refresh
+      - name: Patch guide logo labels artwork refresh and cache
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -34,21 +34,22 @@ jobs:
 
           # Always keep the channel name visible under the logo. Favicons and
           # XMLTV logos have inconsistent aspect ratios, so text remains the
-          # reliable identifier.
+          # reliable identifier. Also bump the programme cache key so corrected
+          # schedules/images from Supabase replace stale local data immediately.
           p=Path('src/MainApp.tsx')
           s=p.read_text()
+          s=s.replace("const PROGRAMS_CACHE_KEY='@onlive/tv-programs-cache';","const PROGRAMS_CACHE_KEY='@onlive/tv-programs-cache-v2';")
           old="{item.channelLogo?<View style={{width:62,alignItems:'flex-start'}}><Image source={{uri:item.channelLogo}} resizeMode=\"contain\" style={{width:34,height:22}}/></View>:<Text style={{width:62,fontSize:11,fontWeight:'800',color:'#555'}} numberOfLines={1}>{item.channel}</Text>}"
           new="<View style={{width:66,alignItems:'center',justifyContent:'center'}}>{item.channelLogo?<Image source={{uri:item.channelLogo}} resizeMode=\"contain\" style={{width:34,height:22,marginBottom:2}}/>:null}<Text style={{width:64,fontSize:8.5,fontWeight:'700',color:'#777',textAlign:'center'}} numberOfLines={1}>{item.channel}</Text></View>"
           if old in s:
               s=s.replace(old,new,1)
           elif new not in s:
-              # Handle a future formatting variant without failing the whole job.
               import re
               pattern=r"\{item\.channelLogo\?<View style=\{\{width:62,alignItems:'flex-start'\}\}><Image source=\{\{uri:item\.channelLogo\}\} resizeMode=\"contain\" style=\{\{width:34,height:22\}\}/></View>:<Text style=\{\{width:62,fontSize:11,fontWeight:'800',color:'#555'\}\} numberOfLines=\{1\}>\{item\.channel\}</Text>\}"
               s2,n=re.subn(pattern,new,s,count=1)
               if n:
                   s=s2
-              else:
+              elif "fontSize:8.5,fontWeight:'700',color:'#777'" not in s:
                   raise SystemExit('MainApp guide logo block not found')
           p.write_text(s)
           PY
@@ -62,5 +63,5 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src/tvPrograms.ts src/MainApp.tsx
           git diff --cached --quiet && exit 0
-          git commit -m 'Show channel names under logos and refresh programme artwork'
+          git commit -m 'Show channel names refresh artwork and invalidate guide cache'
           git push
