@@ -1,0 +1,48 @@
+name: Fix guide logos and remove featured duplicates
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-guide-logos-and-dedup.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Patch program guide
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const p='src/MainApp.tsx';
+          let s=fs.readFileSync(p,'utf8');
+
+          const oldDefs=`  const visiblePrograms=useMemo(()=>{const list=programs.filter(p=>programState(p,now)!=='expired').filter(p=>{if(filter==='Tous')return true;if(filter==='Sport'){const detected=sportType(p);const isSport=p.category==='Sport'||p.category==='Foot'||p.category==='Tennis'||detected!=='Autres';return isSport&&(sportFilter==='Tous'||detected===sportFilter)}return p.category===filter});if(!selectedProgram)return list;return [...list].sort((a,b)=>a.id===selectedProgram.id?-1:b.id===selectedProgram.id?1:0)},[filter,sportFilter,programs,now,selectedProgram]);\n  const featuredPrograms=useMemo(()=>{const base=programs.filter(p=>programState(p,now)!=='expired');const explicit=base.filter(p=>(p as any).featured);const editorial=base.filter(p=>(p as any).source!=='xmltvfr');const preferred=explicit.length?explicit:(editorial.length?editorial:base);if(!selectedProgram)return preferred.slice(0,3);return [...preferred].sort((a,b)=>a.id===selectedProgram.id?-1:b.id===selectedProgram.id?1:0).slice(0,3)},[programs,now,selectedProgram]);`;
+          const newDefs=`  const featuredPrograms=useMemo(()=>{const base=programs.filter(p=>programState(p,now)!=='expired');const explicit=base.filter(p=>(p as any).featured);const editorial=base.filter(p=>(p as any).source!=='xmltvfr');const preferred=explicit.length?explicit:(editorial.length?editorial:base);if(!selectedProgram)return preferred.slice(0,3);return [...preferred].sort((a,b)=>a.id===selectedProgram.id?-1:b.id===selectedProgram.id?1:0).slice(0,3)},[programs,now,selectedProgram]);\n  const visiblePrograms=useMemo(()=>{const featuredIds=new Set(featuredPrograms.map(p=>p.id));const list=programs.filter(p=>programState(p,now)!=='expired'&&!featuredIds.has(p.id)).filter(p=>{if(filter==='Tous')return true;if(filter==='Sport'){const detected=sportType(p);const isSport=p.category==='Sport'||p.category==='Foot'||p.category==='Tennis'||detected!=='Autres';return isSport&&(sportFilter==='Tous'||detected===sportFilter)}return p.category===filter});if(!selectedProgram||featuredIds.has(selectedProgram.id))return list;return [...list].sort((a,b)=>a.id===selectedProgram.id?-1:b.id===selectedProgram.id?1:0)},[filter,sportFilter,programs,now,selectedProgram,featuredPrograms]);`;
+          if(!s.includes(oldDefs)) throw new Error('program definitions block not found');
+          s=s.replace(oldDefs,newDefs);
+
+          const oldChannel=`<Text style={{width:62,fontSize:11,fontWeight:'800',color:'#555'}} numberOfLines={1}>{item.channel}</Text>`;
+          const newChannel=`<View style={{width:62,height:28,alignItems:'flex-start',justifyContent:'center'}}>{item.channelLogo?<Image source={{uri:item.channelLogo}} resizeMode="contain" style={{width:52,height:22}}/>:<Text style={{width:62,fontSize:10.5,fontWeight:'800',color:'#555'}} numberOfLines={1}>{item.channel}</Text>}</View>`;
+          if(!s.includes(oldChannel)) throw new Error('guide channel cell not found');
+          s=s.replace(oldChannel,newChannel);
+
+          fs.writeFileSync(p,s);
+          NODE
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Commit changes
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/MainApp.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Show channel logos and remove featured programs from guide"
+          git push
