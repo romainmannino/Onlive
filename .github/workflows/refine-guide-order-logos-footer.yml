@@ -1,0 +1,71 @@
+name: Refine guide order, channel logos and white footer
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/refine-guide-order-logos-footer.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Patch Home guide ordering, logos and footer
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const p='src/MainApp.tsx';
+          let s=fs.readFileSync(p,'utf8');
+          let changed=false;
+
+          // French TV numbering/order. Premium sports channels follow the TNT block.
+          if(!s.includes('const CHANNEL_ORDER:Record<string,number>=')){
+            const anchor="const CONTACT_FILTERS:['Tous','Onlive','Inviter']=['Tous','Onlive','Inviter'];";
+            if(!s.includes(anchor)) throw new Error('CHANNEL_ORDER anchor not found');
+            const block=`\nconst CHANNEL_ORDER:Record<string,number>={\n 'tf1':1,'france 2':2,'france 3':3,'france 4':4,'france 5':5,'m6':6,'arte':7,'lcp':8,'public sénat':8,'public senat':8,'w9':9,'tmc':10,'tfx':11,'gulli':12,'bfm tv':13,'bfmtv':13,'cnews':14,'lci':15,'franceinfo':16,'france info':16,'cstar':17,'t18':18,'novo19':19,'novo 19':19,'tf1 séries films':20,'tf1 series films':20,"l'équipe":21,'lequipe':21,'6ter':22,'rmc story':23,'rmc découverte':24,'rmc decouverte':24,'chérie 25':25,'cherie 25':25,'canal+':30,'canal +':30,'ligue 1+':31,'bein sports':32,'bein sports 1':32,'bein sports 2':33,'bein sports 3':34,'rmc sport 1':35,'rmc sport':35};\nconst CHANNEL_LOGO_FALLBACK:Record<string,string>={\n 'tf1':'https://static-tv.s-sfr.fr/logo/edito/1.png','france 2':'https://static-tv.s-sfr.fr/logo/edito/2.png','france 3':'https://static-tv.s-sfr.fr/logo/edito/3.png','france 4':'https://static-tv.s-sfr.fr/logo/edito/4.png','france 5':'https://static-tv.s-sfr.fr/logo/edito/5.png','m6':'https://static-tv.s-sfr.fr/logo/edito/6.png','arte':'https://static-tv.s-sfr.fr/logo/edito/7.png','lcp':'https://static-tv.s-sfr.fr/logo/edito/8.png','public sénat':'https://static-tv.s-sfr.fr/logo/edito/8.png','public senat':'https://static-tv.s-sfr.fr/logo/edito/8.png','w9':'https://static-tv.s-sfr.fr/logo/edito/9.png','tmc':'https://static-tv.s-sfr.fr/logo/edito/10.png','tfx':'https://static-tv.s-sfr.fr/logo/edito/11.png','gulli':'https://static-tv.s-sfr.fr/logo/edito/12.png','bfm tv':'https://static-tv.s-sfr.fr/logo/edito/13.png','bfmtv':'https://static-tv.s-sfr.fr/logo/edito/13.png','cnews':'https://static-tv.s-sfr.fr/logo/edito/14.png','lci':'https://static-tv.s-sfr.fr/logo/edito/15.png','franceinfo':'https://static-tv.s-sfr.fr/logo/edito/16.png','france info':'https://static-tv.s-sfr.fr/logo/edito/16.png','cstar':'https://static-tv.s-sfr.fr/logo/edito/17.png','t18':'https://static-tv.s-sfr.fr/logo/edito/18.png','novo19':'https://static-tv.s-sfr.fr/logo/edito/19.png','novo 19':'https://static-tv.s-sfr.fr/logo/edito/19.png','tf1 séries films':'https://static-tv.s-sfr.fr/logo/edito/20.png','tf1 series films':'https://static-tv.s-sfr.fr/logo/edito/20.png',"l'équipe":'https://static-tv.s-sfr.fr/logo/edito/21.png','lequipe':'https://static-tv.s-sfr.fr/logo/edito/21.png','6ter':'https://static-tv.s-sfr.fr/logo/edito/22.png','rmc story':'https://static-tv.s-sfr.fr/logo/edito/23.png','rmc découverte':'https://static-tv.s-sfr.fr/logo/edito/24.png','rmc decouverte':'https://static-tv.s-sfr.fr/logo/edito/24.png','chérie 25':'https://static-tv.s-sfr.fr/logo/edito/25.png','cherie 25':'https://static-tv.s-sfr.fr/logo/edito/25.png'};\nconst normalizeChannel=(v='')=>v.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim();\nconst channelRank=(v='')=>{const n=normalizeChannel(v);const exact=Object.entries(CHANNEL_ORDER).find(([k])=>normalizeChannel(k)===n);if(exact)return exact[1];const fuzzy=Object.entries(CHANNEL_ORDER).find(([k])=>n.includes(normalizeChannel(k))||normalizeChannel(k).includes(n));return fuzzy?fuzzy[1]:999};\nconst channelLogoFor=(p:Program)=>{const n=normalizeChannel(p.channel);const direct=Object.entries(CHANNEL_LOGO_FALLBACK).find(([k])=>normalizeChannel(k)===n)?.[1];const fuzzy=Object.entries(CHANNEL_LOGO_FALLBACK).find(([k])=>n.includes(normalizeChannel(k))||normalizeChannel(k).includes(n))?.[1];return direct||fuzzy||(p as any).channelLogo||''};\n`;
+            s=s.replace(anchor,anchor+block);changed=true;
+          }
+
+          // Sort the expanded guide by French channel number, then by time.
+          const oldMap='{visiblePrograms.map((item,i)=>{const count=';
+          const newMap="{[...visiblePrograms].sort((a,b)=>channelRank(a.channel)-channelRank(b.channel)||a.time.localeCompare(b.time)).map((item,i)=>{const logo=channelLogoFor(item);const count=";
+          if(s.includes(oldMap)){s=s.replace(oldMap,newMap);changed=true;}
+          else if(!s.includes('[...visiblePrograms].sort((a,b)=>channelRank')) throw new Error('visiblePrograms map anchor not found');
+
+          if(s.includes('{item.channelLogo?<><Image source={{uri:item.channelLogo}}')){
+            s=s.replace('{item.channelLogo?<><Image source={{uri:item.channelLogo}}','{logo?<><Image source={{uri:logo}}');changed=true;
+          }
+
+          // White page underlay behind the rounded bottom menu, while the menu itself is light grey.
+          const navAnchor='</View></ScrollView><BottomNav active="home"';
+          const navReplacement='</View></ScrollView><View pointerEvents="none" style={{position:\'absolute\',left:0,right:0,bottom:0,height:104,backgroundColor:\'#fff\'}}/><BottomNav active="home"';
+          if(s.includes(navAnchor)){s=s.replace(navAnchor,navReplacement);changed=true;}
+          else if(!s.includes('height:104,backgroundColor:\'#fff\'')) throw new Error('Home BottomNav anchor not found');
+
+          s=s.replace(/bottomNav:\{position:'absolute',left:0,right:0,bottom:0,height:78,backgroundColor:'#[0-9a-fA-F]{3,6}',flexDirection:'row'\}/,"bottomNav:{position:'absolute',left:0,right:0,bottom:0,height:78,backgroundColor:'#f6f6f8',flexDirection:'row'}");
+          s=s.replace(/navInactive:\{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:'#[0-9a-fA-F]{3,6}'\}/,"navInactive:{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:'#f6f6f8'}");
+
+          // Keep the white social zone visually rounded at its top edge.
+          s=s.replace("liveZone:{backgroundColor:'#fff',marginHorizontal:-14,paddingHorizontal:14,paddingTop:6,paddingBottom:28,marginTop:4}","liveZone:{backgroundColor:'#fff',marginHorizontal:-14,paddingHorizontal:14,paddingTop:10,paddingBottom:110,marginTop:4,borderTopLeftRadius:26,borderTopRightRadius:26,overflow:'hidden'}");
+
+          if(!changed) console.log('Core ordering/footer patch was already present; normalized styles anyway.');
+          fs.writeFileSync(p,s);
+          NODE
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx
+          git diff --cached --quiet || git commit -m "Sort guide by channel number and improve channel logos/footer"
+          git push
