@@ -1,0 +1,39 @@
+name: Apply admin program sync
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-admin-program-sync.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Patch featured order and fresh admin data
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          let tv=fs.readFileSync('src/tvPrograms.ts','utf8');
+          tv=tv.replace("  featured?: boolean;\n};","  featured?: boolean;\n  featuredOrder?: number;\n};");
+          tv=tv.replace("channel_logo_url,featured')","channel_logo_url,featured,featured_order')");
+          tv=tv.replace("      featured: Boolean(row.featured),\n","      featured: Boolean(row.featured),\n      featuredOrder: row.featured_order == null ? undefined : Number(row.featured_order),\n");
+          fs.writeFileSync('src/tvPrograms.ts',tv);
+          let app=fs.readFileSync('src/MainApp.tsx','utf8');
+          app=app.replace("const PROGRAMS_CACHE_KEY='@onlive/tv-programs-cache-v2';","const PROGRAMS_CACHE_KEY='@onlive/tv-programs-cache-v3';");
+          app=app.replace("const ao=(a as any).featured_order??99,bo=(b as any).featured_order??99;","const ao=(a as any).featuredOrder??99,bo=(b as any).featuredOrder??99;");
+          fs.writeFileSync('src/MainApp.tsx',app);
+          NODE
+      - name: Typecheck
+        run: npm ci && npx tsc --noEmit
+      - name: Commit
+        run: |
+          git config user.name "Onlive Bot"
+          git config user.email "actions@github.com"
+          git add src/tvPrograms.ts src/MainApp.tsx
+          git diff --cached --quiet || git commit -m "Sync admin selection order with mobile app"
+          git push
