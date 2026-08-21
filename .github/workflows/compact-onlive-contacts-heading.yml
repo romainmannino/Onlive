@@ -1,0 +1,49 @@
+name: Compact Onlive contacts heading
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/compact-onlive-contacts-heading.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Replace heading
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/MainApp.tsx')
+          s=p.read_text()
+          old='''<View style={{flexDirection:'row',alignItems:'center',gap:7}}><Text style={[s.sectionTitle,s.liveSectionTitle,{fontWeight:'600'}]}>Ils sont <Text style={{fontSize:20,fontWeight:'400',letterSpacing:0}}>on</Text><Text style={{fontSize:20,fontWeight:'600',letterSpacing:.2}}> LIVE</Text></Text>{liveFriends.length>0&&<View style={{minWidth:20,height:20,paddingHorizontal:6,borderRadius:10,backgroundColor:'rgba(107,44,255,.12)',alignItems:'center',justifyContent:'center'}}><Text style={{fontSize:11,fontWeight:'700',color:'#6b2cff'}}>{liveFriends.length}</Text></View>}</View>'''
+          new='''<View style={{flexDirection:'row',alignItems:'center',gap:7}}><Ionicons name="people-outline" size={21} color="#6b2cff"/><Text style={[s.sectionTitle,s.liveSectionTitle,{fontWeight:'600'}]}>ONLIVE</Text>{liveFriends.length>0&&<View style={{minWidth:20,height:20,paddingHorizontal:6,borderRadius:10,backgroundColor:'rgba(107,44,255,.12)',alignItems:'center',justifyContent:'center'}}><Text style={{fontSize:11,fontWeight:'700',color:'#6b2cff'}}>{liveFriends.length}</Text></View>}</View>'''
+          if old in s:
+              p.write_text(s.replace(old,new,1))
+              print('Heading replaced')
+          elif '>ONLIVE</Text>' in s and 'name="people-outline"' in s:
+              print('Already applied')
+          else:
+              raise SystemExit('Expected heading block not found; refusing unsafe edit')
+          PY
+      - name: Commit app change
+        run: |
+          if git diff --quiet -- src/MainApp.tsx; then
+            echo "No app change needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx
+          git commit -m "Use compact ONLIVE contacts heading"
+          git push
