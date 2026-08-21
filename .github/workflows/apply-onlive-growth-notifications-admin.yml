@@ -1,0 +1,94 @@
+name: Apply Onlive growth notifications and admin analytics
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-onlive-growth-notifications-admin.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Patch app notifications, favorites sync and admin analytics
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new, label):
+              p=Path(path); s=p.read_text();
+              if old in s:
+                  p.write_text(s.replace(old,new,1)); print('patched',label); return True
+              if new in s:
+                  print('already patched',label); return False
+              print('pattern not found',label); return False
+
+          # Chat messages must trigger push even if recipient is currently watching another programme.
+          replace_once('src/ChatScreen.tsx',
+              "import{pushChatInvite}from'./notifications';",
+              "import{pushChatInvite,pushChatMessage}from'./notifications';",
+              'ChatScreen push import')
+          replace_once('src/ChatScreen.tsx',
+              "async function send(){const body=text.trim();if(!body||!roomId)return;const{error}=await supabase.rpc('send_chat_message',{p_room_id:roomId,p_body:body});if(error)return Alert.alert('Message impossible',error.message);setText('');await openRoom(roomId)}",
+              "async function send(){const body=text.trim();if(!body||!roomId)return;const{error}=await supabase.rpc('send_chat_message',{p_room_id:roomId,p_body:body});if(error)return Alert.alert('Message impossible',error.message);pushChatMessage(roomId,body).then(({error:e})=>{if(e)console.warn('Push chat message',e.message)}).catch(()=>{});setText('');await openRoom(roomId)}",
+              'ChatScreen push send')
+
+          # Root: schedule favorite reminders and support tapping a notification after a cold launch.
+          replace_once('src/Root.tsx',
+              "import{Notifications,registerPushNotifications,setAppBadge}from'./notifications';",
+              "import{Notifications,registerPushNotifications,setAppBadge,syncFavoriteReminderSchedule}from'./notifications';",
+              'Root notification import')
+          replace_once('src/Root.tsx',
+              "useEffect(()=>{if(!userId)return;registerPushNotifications(userId)},[userId]);",
+              "useEffect(()=>{if(!userId)return;(async()=>{await registerPushNotifications(userId);try{const raw=await AsyncStorage.getItem('@onlive/favorites');const favs=raw?JSON.parse(raw):[];await syncFavoriteReminderSchedule(userId,Array.isArray(favs)&&favs.length>0)}catch{await syncFavoriteReminderSchedule(userId,false)}})()},[userId]);",
+              'Root favorite reminder schedule')
+          old_listener="useEffect(()=>{const sub=Notifications.addNotificationResponseReceivedListener(response=>{const d:any=response.notification.request.content.data||{};if((d.type==='chat_message'||d.type==='chat_invite')&&d.roomId){setChatTarget(null);setNotificationRoomId(String(d.roomId));setMode('chat')}else if(d.type==='watching'){setNotificationRoomId(null);setChatTarget(null);setAppSection('home');setMode('app')}});return()=>sub.remove()},[]);"
+          new_listener="useEffect(()=>{const openFromNotification=(response:any)=>{if(!response)return;const d:any=response.notification?.request?.content?.data||{};if((d.type==='chat_message'||d.type==='chat_invite')&&d.roomId){setChatTarget(null);setNotificationRoomId(String(d.roomId));setMode('chat')}else if(d.type==='watching'||d.type==='favorite_reminder'||d.type==='favorite_start'){setNotificationRoomId(null);setChatTarget(null);setAppSection('home');setMode('app')}};Notifications.getLastNotificationResponseAsync().then(openFromNotification).catch(()=>{});const sub=Notifications.addNotificationResponseReceivedListener(openFromNotification);return()=>sub.remove()},[]);"
+          replace_once('src/Root.tsx',old_listener,new_listener,'Root cold notification open')
+
+          # Favorites: persist to Supabase for admin/CRM, and cancel reminders immediately after first favorite.
+          replace_once('src/MainApp.tsx',
+              "import{Notifications}from'./notifications';",
+              "import{Notifications,syncFavoriteReminderSchedule}from'./notifications';",
+              'MainApp reminder import')
+          old_toggle="async function toggleFavorite(id:string){const next=favorites.includes(id)?favorites.filter(x=>x!==id):[...favorites,id];setFavorites(next);await AsyncStorage.setItem(FAVORITES_KEY,JSON.stringify(next))}"
+          new_toggle="async function toggleFavorite(id:string){const next=favorites.includes(id)?favorites.filter(x=>x!==id):[...favorites,id];setFavorites(next);await AsyncStorage.setItem(FAVORITES_KEY,JSON.stringify(next));if(userId){try{await supabase.from('user_favorites').delete().eq('user_id',userId);if(next.length){const rows=next.map(key=>{const item:any=favoriteCatalog.find((x:any)=>x.id===key);return{user_id:userId,favorite_key:key,favorite_label:item?.label||key,favorite_group:item?.group||null}});await supabase.from('user_favorites').insert(rows)}await syncFavoriteReminderSchedule(userId,next.length>0)}catch(e){console.warn('Favorite sync failed',e)}}}"
+          replace_once('src/MainApp.tsx',old_toggle,new_toggle,'MainApp favorite Supabase sync')
+
+          # Admin: additive analytics section only; do not touch programme management.
+          p=Path('public/admin.html'); s=p.read_text(); original=s
+          marker='<div class="card section"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div><h2 style="margin:0">Sélection du jour</h2>'
+          growth='''<div class="card section" id="growthAnalytics"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div><h2 style="margin:0">Audience & engagement – 30 jours</h2><div class="muted small">Données utilisateurs, temps de visionnage, discussions et favoris.</div></div><button class="btn soft tiny" onclick="loadGrowthAnalytics()">Actualiser</button></div><div class="grid" style="margin-top:12px"><div class="kpi"><div id="growthNewUsers" class="v">–</div><div class="l">Nouveaux utilisateurs</div></div><div class="kpi"><div id="growthWatchHours" class="v">–</div><div class="l">Heures regardées</div></div><div class="kpi"><div id="growthAvgWatch" class="v">–</div><div class="l">Min. moyennes / session</div></div><div class="kpi"><div id="growthRooms" class="v">–</div><div class="l">Discussions ouvertes</div></div><div class="kpi"><div id="growthMessages" class="v">–</div><div class="l">Messages</div></div><div class="kpi"><div id="growthFavoriteUsers" class="v">–</div><div class="l">Utilisateurs avec favoris</div></div></div><div class="layout section"><div><h2>Programmes – audience réelle</h2><div class="channelRow channelHead"><span>Programme</span><span>Viewers</span><span>Min.</span><span>Msgs</span></div><div id="growthPrograms" class="channelStats"></div></div><div><h2>Utilisateurs actifs</h2><div id="growthUsers" class="toplist"></div></div></div><div class="layout section"><div><h2>Chaînes – performance</h2><div class="channelRow channelHead"><span>Chaîne</span><span>Viewers</span><span>Heures</span><span>Msgs</span></div><div id="growthChannels" class="channelStats"></div></div><div><h2>Relations & discussions</h2><div id="growthContacts" class="toplist"></div></div></div></div>'''
+          if growth not in s and marker in s:
+              s=s.replace(marker,growth+marker,1)
+
+          boot_old="await Promise.all([loadStats(),loadPrograms(),loadChannelStats()])"
+          boot_new="await Promise.all([loadStats(),loadPrograms(),loadChannelStats(),loadGrowthAnalytics()])"
+          if boot_old in s:s=s.replace(boot_old,boot_new,1)
+
+          if 'async function loadGrowthAnalytics()' not in s:
+              insert_at='function syncDate(v)'
+              fn="""async function loadGrowthAnalytics(){try{const [{data:g,error:ge},{data:p,error:pe},{data:u,error:ue},{data:c,error:ce},{data:i,error:ie}]=await Promise.all([sb.rpc('admin_growth_dashboard',{days_back:30}),sb.rpc('admin_program_growth_rows',{days_back:30}),sb.rpc('admin_user_growth_rows',{days_back:30}),sb.rpc('admin_channel_growth_rows',{days_back:30}),sb.rpc('admin_contact_growth_rows',{days_back:30})]);if(ge)throw ge;$('growthNewUsers').textContent=g.new_users||0;$('growthWatchHours').textContent=g.watch_hours||0;$('growthAvgWatch').textContent=g.avg_watch_minutes||0;$('growthRooms').textContent=g.chat_rooms||0;$('growthMessages').textContent=g.messages||0;$('growthFavoriteUsers').textContent=g.favorites_users||0;if(!pe)$('growthPrograms').innerHTML=(p||[]).slice(0,20).map(x=>`<div class=\"channelRow\"><span><b>${esc(x.title)}</b><br><small class=\"muted\">${esc(x.channel||'')}</small></span><span>${x.unique_viewers||0}</span><span>${x.total_watch_minutes||0}</span><span>${x.messages||0}</span></div>`).join('')||'<div class=\"muted\">Pas encore de données.</div>';if(!ue)$('growthUsers').innerHTML=(u||[]).slice(0,20).map(x=>`<div class=\"toprow\"><span><b>${esc(x.display_name||'Utilisateur')}</b><br><small class=\"muted\">${x.distinct_programs_watched||0} programmes · ${x.total_watch_minutes||0} min · ${x.messages_sent||0} msgs</small></span><b>${x.favorites_count||0} ★</b><span></span><span></span></div>`).join('')||'<div class=\"muted\">Pas encore de données.</div>';if(!ce)$('growthChannels').innerHTML=(c||[]).slice(0,20).map(x=>`<div class=\"channelRow\"><b>${esc(x.channel||'')}</b><span>${x.viewer_program_entries||0}</span><span>${x.total_watch_hours||0}</span><span>${x.messages||0}</span></div>`).join('')||'<div class=\"muted\">Pas encore de données.</div>';if(!ie)$('growthContacts').innerHTML=(i||[]).slice(0,20).map(x=>`<div class=\"toprow\"><span><b>${esc(x.user_a_name||'Utilisateur')} ↔ ${esc(x.user_b_name||'Utilisateur')}</b><br><small class=\"muted\">${x.shared_rooms||0} discussions</small></span><b>${x.messages||0} msgs</b><span></span><span></span></div>`).join('')||'<div class=\"muted\">Pas encore de données.</div>'}catch(e){console.warn('Growth analytics',e)}}\n"""
+              if insert_at in s:s=s.replace(insert_at,fn+insert_at,1)
+          if s!=original:p.write_text(s)
+          PY
+      - name: TypeScript check
+        run: npx tsc --noEmit
+      - name: Commit app and admin changes
+        run: |
+          if git diff --quiet; then echo 'Nothing to commit'; exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/Root.tsx src/MainApp.tsx src/ChatScreen.tsx public/admin.html
+          git commit -m 'Add cross-program chat push favorites reminders and growth analytics'
+          git push
