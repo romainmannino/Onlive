@@ -43,6 +43,7 @@ const CATEGORY_FALLBACKS: Record<ProgramCategory,string> = {
 // Curated Onlive library. These entries have priority over feed/API artwork so
 // recurring flagship programmes always keep a recognisable, stable visual.
 const PROGRAM_IMAGE_RULES: Array<{match:RegExp,image:string}> = [
+  {match:/\b(?:les )?12 coups(?: de midi)?\b/i,image:'https://tf1pro.com/sites/default/files/styles/fiches/public/media-import/LE%20COMBAT%20DES%20MAITRES%202026.jpg?itok=3JtqVZHp'},
   {match:/^capital\b/i,image:'https://fusion.molotov.tv/arts/i/446x588/Ch8SHQoUbyTZGQah98A_jJCPkVDZbvKxongSA2pwZxgBCh8IARIbChRu-JiZgm8Kj2R4YcqCHzqhL_f5jhIDcG5n/jpg'},
   {match:/\bune famille en or\b/i,image:'https://tf1pro.com/sites/default/files/styles/fiches/public/media-import/Famille%20en%20or%20Ruquier%20Bernier.jpg?itok=AMIwCdSl'},
 ];
