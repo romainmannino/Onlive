@@ -1,0 +1,52 @@
+name: Apply featured header and card overlay
+on:
+  push:
+    paths:
+      - '.github/workflows/home-featured-header-and-card-overlay.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Patch MainApp
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const p = 'src/MainApp.tsx';
+          let s = fs.readFileSync(p, 'utf8');
+
+          const oldHeader = `<Text style={{fontSize:15,fontWeight:'700',color:'#111',marginTop:16,marginBottom:10}}>Notre sélection du jour</Text><FlatList`;
+          const newHeader = `<View style={{marginTop:16,marginBottom:10,flexDirection:'row',alignItems:'center',justifyContent:'space-between'}}><Text style={{fontSize:15,fontWeight:'700',color:'#111'}}>Notre sélection du jour</Text><TouchableOpacity accessibilityLabel={programGuideOpen?'Fermer tous les programmes':'Voir tous les programmes'} onPress={()=>setProgramGuideOpen(v=>!v)} style={{flexDirection:'row',alignItems:'center',gap:4,paddingVertical:4,paddingLeft:10}}><Text style={{fontSize:12.5,fontWeight:'800',color:'#6b2cff'}}>Voir tout</Text><Ionicons name={programGuideOpen?'chevron-up':'chevron-down'} size={18} color="#6b2cff"/></TouchableOpacity></View><FlatList`;
+          if (!s.includes(oldHeader)) throw new Error('Featured header anchor not found');
+          s = s.replace(oldHeader, newHeader);
+
+          const oldArrow = `<TouchableOpacity accessibilityLabel={programGuideOpen?'Fermer tous les programmes':'Voir tous les programmes'} onPress={()=>setProgramGuideOpen(v=>!v)} style={{height:42,alignItems:'center',justifyContent:'center'}}><Ionicons name={programGuideOpen?'chevron-up':'chevron-down'} size={25} color="#6b2cff"/></TouchableOpacity>`;
+          if (!s.includes(oldArrow)) throw new Error('Old standalone guide arrow not found');
+          s = s.replace(oldArrow, '');
+
+          const oldOverlay = `<LinearGradient colors={['transparent','rgba(0,0,0,.92)']} locations={[.25,1]} style={s.programOverlay}/>`;
+          const newOverlay = `<View pointerEvents="none" style={[StyleSheet.absoluteFillObject,{backgroundColor:'rgba(0,0,0,.08)'}]}/><LinearGradient pointerEvents="none" colors={['rgba(0,0,0,0)','rgba(0,0,0,.16)','rgba(0,0,0,.94)']} locations={[0,.58,1]} style={s.programOverlay}/>`;
+          if (!s.includes(oldOverlay)) throw new Error('Program overlay anchor not found');
+          s = s.replace(oldOverlay, newOverlay);
+
+          fs.writeFileSync(p, s);
+          NODE
+      - name: Commit app change
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx
+          git commit -m "Move guide toggle beside featured title and polish card overlays"
+          git push
