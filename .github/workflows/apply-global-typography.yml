@@ -1,0 +1,72 @@
+name: Apply global system typography
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Apply typography wrapper everywhere
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          targets=[
+            Path('src/Root.tsx'),
+            Path('src/MainApp.tsx'),
+            Path('src/ChatScreen.tsx'),
+            Path('src/ReviewChatScreen.tsx'),
+          ]
+
+          changed=False
+          for p in targets:
+            s=p.read_text()
+            before=s
+            lines=s.splitlines()
+            for i,line in enumerate(lines):
+              if "from'react-native'" in line and line.startswith('import{'):
+                inner=line[len('import{'):line.index("}from'react-native'")]
+                names=[x for x in inner.split(',') if x not in ('Text','TextInput')]
+                lines[i]="import{"+','.join(names)+"}from'react-native';"
+                break
+            s='\n'.join(lines)+'\n'
+            if "from'./Typography'" not in s:
+              insert_at=1
+              s_lines=s.splitlines()
+              s_lines.insert(insert_at,"import{Text,TextInput}from'./Typography';")
+              s='\n'.join(s_lines)+'\n'
+            if s!=before:
+              p.write_text(s)
+              changed=True
+
+          print('Typography changes applied' if changed else 'Typography already applied')
+          PY
+      - name: TypeScript check
+        run: npx tsc --noEmit
+      - name: Commit app changes
+        shell: bash
+        run: |
+          if git diff --quiet -- src; then
+            echo "No typography changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src
+          git commit -m "Use system typography across Onlive"
+          git push
