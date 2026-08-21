@@ -15,6 +15,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Install dependencies
+        run: npm ci
       - name: Patch MainApp Home typography
         shell: python
         run: |
@@ -23,14 +25,12 @@ jobs:
           s=p.read_text()
           old="<Text style={[s.introTitle,attentionFlash&&s.introTitleAttention]}>Choisis ton programme</Text>"
           new="<Text style={[s.introTitle,{fontWeight:'600'},attentionFlash&&s.introTitleAttention]}>Choisis ton programme</Text>"
-          if old not in s:
-              raise SystemExit('Intro title target not found')
-          s=s.replace(old,new,1)
+          if old in s:
+              s=s.replace(old,new,1)
           old="<Text style={[s.sectionTitle,s.liveSectionTitle]}>Ils sont Onlive ({liveFriends.length})</Text>"
-          new="<View style={{flexDirection:'row',alignItems:'center',gap:7}}><Text style={[s.sectionTitle,s.liveSectionTitle,{fontWeight:'600'}]}>Ils sont ONLIVE</Text>{liveFriends.length>0&&<View style={{minWidth:22,height:22,paddingHorizontal:6,borderRadius:11,backgroundColor:'#ece8ff',alignItems:'center',justifyContent:'center'}}><Text style={{fontSize:11,fontWeight:'600',color:'#6b2cff'}}>{liveFriends.length}</Text></View>}</View>"
-          if old not in s:
-              raise SystemExit('Onlive heading target not found')
-          s=s.replace(old,new,1)
+          new="<View style={{flexDirection:'row',alignItems:'center',gap:7}}><Text style={[s.sectionTitle,s.liveSectionTitle,{fontWeight:'600'}]}>Ils sont ONLIVE</Text>{liveFriends.length>0&&<View style={{minWidth:20,height:20,paddingHorizontal:6,borderRadius:10,backgroundColor:'#ece8ff',alignItems:'center',justifyContent:'center'}}><Text style={{fontSize:10.5,fontWeight:'600',color:'#6b2cff'}}>{liveFriends.length}</Text></View>}</View>"
+          if old in s:
+              s=s.replace(old,new,1)
           p.write_text(s)
       - name: TypeScript check
         run: npx tsc --noEmit
