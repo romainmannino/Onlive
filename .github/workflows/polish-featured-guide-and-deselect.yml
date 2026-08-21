@@ -1,0 +1,101 @@
+name: Polish featured guide and deselect updated programs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Apply Home polish
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('src/MainApp.tsx')
+          s = p.read_text()
+          before = s
+
+          # 1) "Voir tout" stays purple but no longer bold.
+          s = re.sub(
+              r"(<Text[^>]*style=\{\{[^}]*)(fontWeight:'(?:700|800|900)')([^}]*color:'#6b2cff'[^}]*\}\}[^>]*>Voir tout</Text>)",
+              r"\1fontWeight:'500'\3",
+              s,
+          )
+          # Also cover the inverse property order.
+          s = re.sub(
+              r"(<Text[^>]*style=\{\{[^}]*color:'#6b2cff'[^}]*)(fontWeight:'(?:700|800|900)')([^}]*\}\}[^>]*>Voir tout</Text>)",
+              r"\1fontWeight:'500'\3",
+              s,
+          )
+
+          # 2) Give the expanded filter row a little breathing room under the cards/header.
+          s = s.replace(
+              "contentContainerStyle={{gap:5,paddingBottom:7}}",
+              "contentContainerStyle={{gap:8,paddingTop:6,paddingBottom:9}}",
+          )
+          s = s.replace(
+              "contentContainerStyle={{gap:6,paddingBottom:7}}",
+              "contentContainerStyle={{gap:8,paddingTop:6,paddingBottom:9}}",
+          )
+
+          # 3) Stronger progressive black fade at the bottom of every featured artwork.
+          s = s.replace(
+              "<LinearGradient colors={['transparent','rgba(0,0,0,.92)']} locations={[.25,1]} style={s.programOverlay}/>",
+              "<LinearGradient colors={['rgba(0,0,0,.03)','rgba(0,0,0,.20)','rgba(0,0,0,.98)']} locations={[0,.55,1]} style={s.programOverlay}/>",
+          )
+          s = s.replace(
+              "<LinearGradient colors={['rgba(0,0,0,.06)','rgba(0,0,0,.18)','rgba(0,0,0,.94)']} locations={[0,.52,1]} style={s.programOverlay}/>",
+              "<LinearGradient colors={['rgba(0,0,0,.03)','rgba(0,0,0,.20)','rgba(0,0,0,.98)']} locations={[0,.55,1]} style={s.programOverlay}/>",
+          )
+
+          # 4) Keep a visible gap between featured cards and the grey Onlive zone.
+          s = s.replace(
+              "<View style={[s.liveZone,{minHeight:Math.max(520,height*.64)}]}>",
+              "<View style={[s.liveZone,{minHeight:Math.max(520,height*.64),marginTop:12}]}>",
+          )
+          s = s.replace(
+              "<View style={[s.liveZone,{minHeight:Math.max(520,height*.64),marginTop:8}]}>",
+              "<View style={[s.liveZone,{minHeight:Math.max(520,height*.64),marginTop:12}]}>",
+          )
+
+          # 5) Important: tapping the currently selected program must ALWAYS deselect it,
+          # even if its time/details were edited in Supabase and it is now a future program.
+          old = "async function chooseProgram(program:Program){if(!userId)return;if(!programSelectable(program,now))return Alert.alert('Programme à venir',`Tu pourras te positionner Onlive 15 minutes avant ${program.time}.`);if(selectedProgram?.id===program.id)return goOfflive();"
+          new = "async function chooseProgram(program:Program){if(!userId)return;if(selectedProgram?.id===program.id)return goOfflive();if(!programSelectable(program,now))return Alert.alert('Programme à venir',`Tu pourras te positionner Onlive 15 minutes avant ${program.time}.`);"
+          s = s.replace(old, new)
+
+          if s == before:
+              raise SystemExit('No matching Home code found; refusing a blind commit')
+
+          p.write_text(s)
+          PY
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+
+      - name: Commit app change
+        shell: bash
+        run: |
+          if git diff --quiet -- src/MainApp.tsx; then
+            echo "No app change to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx
+          git commit -m "Polish Home featured guide and deselection"
+          git push
