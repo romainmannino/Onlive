@@ -1,0 +1,54 @@
+name: Apply admin hybrid stats
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-admin-hybrid-stats.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch admin hybrid analytics
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('public/admin-v2.js')
+          s=p.read_text()
+
+          s=s.replace("sb.rpc('admin_program_stats_range'","sb.rpc('admin_program_stats_hybrid'")
+          s=s.replace("sb.rpc('admin_users_range'","sb.rpc('admin_users_hybrid'")
+
+          old="state={page:'management',from:null,to:null,programs:[],users:[],channels:[],sort:{programs:'unique_viewers',users:'last_activity',channels:'unique_viewers'}}"
+          new="state={page:'management',from:null,to:null,programs:[],users:[],channels:[],sort:{programs:'selections',users:'last_activity',channels:'unique_viewers'}}"
+          s=s.replace(old,new)
+
+          old_dash="<div class=\"v2Kpis\"><div class=\"v2Kpi\"><strong>${fmt(d.users_total)}</strong><span>Utilisateurs inscrits</span></div><div class=\"v2Kpi\"><strong>${fmt(d.new_users)}</strong><span>Nouveaux utilisateurs</span></div><div class=\"v2Kpi\"><strong>${fmt(d.active_users)}</strong><span>Utilisateurs actifs</span></div><div class=\"v2Kpi\"><strong>${fmt(d.watch_hours)} h</strong><span>Temps regardé</span></div><div class=\"v2Kpi\"><strong>${fmt(d.messages)}</strong><span>Messages</span></div></div>"
+          new_dash="<div class=\"v2Kpis\"><div class=\"v2Kpi\"><strong>${fmt(d.users_total)}</strong><span>Utilisateurs inscrits</span></div><div class=\"v2Kpi\"><strong>${fmt(d.new_users)}</strong><span>Nouveaux utilisateurs</span></div><div class=\"v2Kpi\"><strong>${fmt(d.active_users)}</strong><span>Utilisateurs actifs</span></div><div class=\"v2Kpi\"><strong>${fmt(d.program_selections)}</strong><span>Sélections de programmes</span></div><div class=\"v2Kpi\"><strong>${Number(d.watch_minutes||0)<60?fmt(d.watch_minutes)+' min':fmt(d.watch_hours)+' h'}</strong><span>Temps réellement mesuré</span></div><div class=\"v2Kpi\"><strong>${fmt(d.messages)}</strong><span>Messages</span></div></div>"
+          s=s.replace(old_dash,new_dash)
+
+          s=s.replace("<th class=\"v2Sort\" data-sort=\"unique_viewers\">Viewers</th><th class=\"v2Sort\" data-sort=\"total_watch_minutes\">Min.</th><th class=\"v2Sort\" data-sort=\"messages\">Msgs</th><th>Chats</th>","<th class=\"v2Sort\" data-sort=\"selections\">Sélections</th><th class=\"v2Sort\" data-sort=\"unique_selectors\">Utilisateurs</th><th class=\"v2Sort\" data-sort=\"tracked_viewers\">Viewers suivis</th><th class=\"v2Sort\" data-sort=\"total_watch_minutes\">Min. mesurées</th><th class=\"v2Sort\" data-sort=\"messages\">Msgs</th><th>Chats</th>")
+          s=s.replace("<td><b>${fmt(x.unique_viewers)}</b></td><td>${fmt(x.total_watch_minutes)}</td><td>${fmt(x.messages)}</td><td>${fmt(x.chat_rooms)}</td>","<td><b>${fmt(x.selections)}</b></td><td>${fmt(x.unique_selectors)}</td><td>${fmt(x.tracked_viewers)}</td><td>${fmt(x.total_watch_minutes)}</td><td>${fmt(x.messages)}</td><td>${fmt(x.chat_rooms)}</td>")
+
+          s=s.replace("<th>Programmes</th><th>Min.</th><th>Msgs</th><th>Favoris</th><th>Dernière activité</th>","<th>Sélectionnés</th><th>Suivis</th><th>Min. mesurées</th><th>Msgs</th><th>Favoris</th><th>Dernière activité</th>")
+          s=s.replace("<td>${fmt(x.programs_watched)}</td><td>${fmt(x.total_watch_minutes)}</td><td>${fmt(x.messages_sent)}</td><td>${fmt(x.favorites_count)}</td><td>${dtstr(x.last_activity)}</td>","<td><b>${fmt(x.programs_selected)}</b></td><td>${fmt(x.programs_watched)}</td><td>${fmt(x.total_watch_minutes)}</td><td>${fmt(x.messages_sent)}</td><td>${fmt(x.favorites_count)}</td><td>${dtstr(x.last_activity)}</td>")
+
+          s=s.replace("<h2>Temps regardé par jour</h2>","<h2>Temps réellement mesuré par jour</h2>")
+          s=s.replace("<tr><td>Sessions de visionnage</td><td><b>${fmt(d.watch_sessions)}</b></td></tr>","<tr><td>Sélections de programmes</td><td><b>${fmt(d.program_selections)}</b></td></tr><tr><td>Utilisateurs ayant sélectionné</td><td><b>${fmt(d.unique_selectors)}</b></td></tr><tr><td>Sessions de visionnage mesurées</td><td><b>${fmt(d.watch_sessions)}</b></td></tr>")
+
+          p.write_text(s)
+          PY
+      - name: Commit changes
+        run: |
+          if git diff --quiet; then echo 'Nothing to commit'; exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add public/admin-v2.js
+          git commit -m 'Connect admin stats to hybrid historical analytics'
+          git push
