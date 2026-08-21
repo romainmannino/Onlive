@@ -1,0 +1,116 @@
+name: Refine Home scroll shell
+
+on:
+  push:
+    paths:
+      - '.github/workflows/refine-home-scroll-shell.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply Home layout polish
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('src/MainApp.tsx')
+          s = p.read_text()
+          original = s
+
+          # 1) Put the logo inside the Home ScrollView so it naturally disappears on scroll.
+          top_pattern = re.compile(
+              r'return<SafeAreaView style=\{s\.screen\}><StatusBar style="dark"/><View style=\{s\.onliveTopBar\}>.*?</View><ScrollView contentContainerStyle=\{\[s\.homeContent,tabletLayout&&s\.homeContentTablet\]\}>',
+              re.S,
+          )
+          top_replacement = '''return<SafeAreaView style={[s.screen,{backgroundColor:'#fff'}]}><StatusBar style="dark"/><ScrollView contentContainerStyle={[s.homeContent,tabletLayout&&s.homeContentTablet,{backgroundColor:'#fff',paddingBottom:110}]}><View style={{height:68,alignItems:'center',justifyContent:'center'}}><Image source={LOGO_ON} resizeMode="contain" style={[s.onLogo,{width:124,height:50}]}/></View>'''
+          s, n_top = top_pattern.subn(top_replacement, s, count=1)
+          if n_top != 1 and "width:124,height:50" not in s:
+              raise SystemExit('Home top bar target not found')
+
+          # 2) Put Favorites on the same line as the Home heading, at the far right.
+          old_heading = '''{selectedProgram?<Text style={{fontSize:14.5,lineHeight:18,marginTop:10,marginBottom:2,color:'#111'}} numberOfLines={1}><Text style={{fontWeight:'500',color:'#111'}}>Tu regardes : </Text><Text style={{fontWeight:'800',color:'#6b2cff'}}>« {selectedProgram.title} »</Text></Text>:<Text style={[s.introTitle,attentionFlash&&s.introTitleAttention,{fontWeight:'600'}]}>Choisis ton programme</Text>}'''
+          new_heading = '''<View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:12,marginTop:8}}><View style={{flex:1,minWidth:0}}>{selectedProgram?<Text style={{fontSize:14.5,lineHeight:18,color:'#111'}} numberOfLines={1}><Text style={{fontWeight:'500',color:'#111'}}>Tu regardes : </Text><Text style={{fontWeight:'800',color:'#6b2cff'}}>« {selectedProgram.title} »</Text></Text>:<Text style={[s.introTitle,attentionFlash&&s.introTitleAttention,{fontWeight:'600',marginTop:0}]}>Choisis ton programme</Text>}</View><TouchableOpacity accessibilityLabel="Mes favoris" onPress={()=>setFavoritesOpen(true)} style={[s.favoriteTopButton,{flexShrink:0}]}><Ionicons name={favorites.length?'star':'star-outline'} size={24} color={favorites.length?'#FFD43B':'#111111'}/></TouchableOpacity></View>'''
+          if old_heading in s:
+              s = s.replace(old_heading, new_heading, 1)
+          elif 'Choisis ton programme' in s and 'marginTop:0}]}>Choisis ton programme' not in s:
+              raise SystemExit('Home heading target not found')
+
+          # 3) Remove the opaque strip that used to sit behind the bottom navigation.
+          opaque_strip = '''<View pointerEvents="none" style={{position:'absolute',left:0,right:0,bottom:0,height:112,backgroundColor:'#f6f6f8'}}/>'''
+          s = s.replace(opaque_strip, '', 1)
+
+          # 4) Keep the social area white and let long contact lists scroll behind the floating nav.
+          s = s.replace(
+              "<View style={[s.liveZone,{minHeight:Math.max(520,height*.64),marginTop:12}]}",
+              "<View style={[s.liveZone,{minHeight:Math.max(520,height*.64),marginTop:12,backgroundColor:'#fff'}]}",
+              1,
+          )
+
+          # 5) Normalize Home canvas to pure white.
+          s = s.replace("screen:{flex:1,backgroundColor:'#f6f6f8'}", "screen:{flex:1,backgroundColor:'#fff'}", 1)
+
+          # 6) Refine the live-zone style without affecting other style blocks.
+          def patch_block(text, name, transform):
+              m = re.search(rf'{name}:\{{([^}}]*)\}}', text)
+              if not m:
+                  raise SystemExit(f'{name} style target not found')
+              body = transform(m.group(1))
+              return text[:m.start()] + f'{name}:{{{body}}}' + text[m.end():]
+
+          def live_zone(body):
+              body = body.replace("backgroundColor:'#f6f6f8'", "backgroundColor:'#fff'")
+              body = body.replace('paddingBottom:190', 'paddingBottom:110')
+              body = body.replace(",overflow:'hidden'", '')
+              return body
+          s = patch_block(s, 'liveZone', live_zone)
+
+          # Grey contact cards on the white canvas keep the sections readable.
+          def friends_card(body):
+              return body.replace("backgroundColor:'#fff'", "backgroundColor:'#f6f6f8'")
+          s = patch_block(s, 'friendsCard', friends_card)
+          s = patch_block(s, 'emptyFriends', friends_card)
+
+          # 7) Bottom navigation: translucent so scrolling content remains visible underneath.
+          def bottom_nav(body):
+              body = body.replace("backgroundColor:'#fff'", "backgroundColor:'rgba(255,255,255,.86)'")
+              if 'zIndex:' not in body:
+                  body += ",zIndex:20"
+              return body
+          s = patch_block(s, 'bottomNav', bottom_nav)
+
+          def nav_inactive(body):
+              return body.replace("backgroundColor:'#fff'", "backgroundColor:'transparent'")
+          s = patch_block(s, 'navInactive', nav_inactive)
+
+          if s == original:
+              print('Home scroll shell already applied')
+          else:
+              p.write_text(s)
+              print('Home scroll shell applied')
+          PY
+      - name: TypeScript check
+        run: npx tsc --noEmit
+      - name: Commit app change
+        run: |
+          if git diff --quiet; then
+            echo "Nothing to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx
+          git commit -m "Refine Home white shell, scrolling logo and translucent nav"
+          git push
