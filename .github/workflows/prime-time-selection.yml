@@ -1,4 +1,4 @@
-name: Prime-time selection only
+name: Diversified audience selection
 on:
   push:
     paths:
@@ -14,19 +14,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Patch prime-time selection
+      - name: Patch diversified daily selection
         run: |
           python - <<'PY'
           from pathlib import Path
           p=Path('src/MainApp.tsx')
           s=p.read_text()
-          old="const featuredPrograms=useMemo(()=>{const base=programs.filter(p=>programState(p,now)!=='expired');const explicit=base.filter(p=>(p as any).featured);const editorial=base.filter(p=>(p as any).source!=='xmltvfr');const preferred=explicit.length?explicit:(editorial.length?editorial:base);if(!selectedProgram)return preferred.slice(0,3);return [...preferred].sort((a,b)=>a.id===selectedProgram.id?-1:b.id===selectedProgram.id?1:0).slice(0,3)},[programs,now,selectedProgram]);"
-          new="const featuredPrograms=useMemo(()=>{const prime=programs.filter(p=>{if(programState(p,now)==='expired')return false;const h=Number(String(p.time||'').slice(0,2)),m=Number(String(p.time||'').slice(3,5));const minutes=h*60+m;return minutes>=19*60+30&&minutes<=23*60+30});const ordered=[...prime].sort((a,b)=>{const af=(a as any).featured?1:0,bf=(b as any).featured?1:0;if(af!=bf)return bf-af;const ao=(a as any).featured_order??99,bo=(b as any).featured_order??99;if(ao!=bo)return ao-bo;return String(a.time).localeCompare(String(b.time))});return ordered.slice(0,3)},[programs,now]);"
+          old="const featuredPrograms=useMemo(()=>{const prime=programs.filter(p=>{if(programState(p,now)==='expired')return false;const h=Number(String(p.time||'').slice(0,2)),m=Number(String(p.time||'').slice(3,5));const minutes=h*60+m;return minutes>=19*60+30&&minutes<=23*60+30});const ordered=[...prime].sort((a,b)=>{const af=(a as any).featured?1:0,bf=(b as any).featured?1:0;if(af!=bf)return bf-af;const ao=(a as any).featured_order??99,bo=(b as any).featured_order??99;if(ao!=bo)return ao-bo;return String(a.time).localeCompare(String(b.time))});return ordered.slice(0,3)},[programs,now]);"
+          new="const featuredPrograms=useMemo(()=>{const norm=(v='')=>String(v).toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'');const mins=(p:Program)=>{const[h,m]=String(p.time||'00:00').split(':').map(Number);return h*60+(m||0)};const bucket=(p:Program)=>{const c=norm(p.category),t=norm(p.title);if(/sport|foot|football|tennis|rugby|basket|handball|volley|golf|cycl|athlet|natation|mma|boxe|f1|moto/.test(c+' '+t))return'sport';if(/film|serie|fiction|telefilm/.test(c))return'fiction';if(/divertissement|magazine|reality|tele-realite|jeu|variete|talk/.test(c))return'entertainment';return'other'};const score=(p:Program)=>{const c=norm(p.channel),t=norm(p.title),m=mins(p);let s=0;if((p as any).featured)s+=120;const fo=(p as any).featured_order;if(typeof fo==='number')s+=Math.max(0,45-fo*5);if(m>=19*60+30&&m<=22*60+30)s+=28;else if(m>=18*60)s+=10;if((p as any).isLive||(p as any).is_live)s+=18;if(c.includes('tf1'))s+=32;else if(c.includes('france 2'))s+=27;else if(c.includes('m6'))s+=26;else if(c.includes('canal'))s+=24;else if(c.includes('france 3'))s+=20;else if(c.includes('arte'))s+=13;else if(c.includes('tmc')||c.includes('w9'))s+=12;else if(c.includes('equipe')||c.includes('bein')||c.includes('ligue 1')||c.includes('rmc sport'))s+=16;if(/psg|paris saint|marseille|\bom\b|equipe de france|france|champions league|ligue des champions|premier league|arsenal|real madrid|barcelone|barcelona|liverpool|bayern|monaco/.test(t))s+=26;if(/finale|demi-finale|quart|derby|classico|choc|grand prix|masters|grand chelem|championnat du monde|euro|coupe du monde/.test(t))s+=18;if(/koh-lanta|the voice|star academy|danse avec les stars|mask singer|top chef|amour est dans le pre|pekin express|incroyable talent|fort boyard|secret story|12 coups|capital|zone interdite/.test(t))s+=24;if(/inedit|premiere|finale|special/.test(t))s+=10;return s};const candidates=programs.filter(p=>programState(p,now)!=='expired'&&mins(p)>=18*60&&mins(p)<=23*60+30);const ranked=[...candidates].sort((a,b)=>score(b)-score(a)||String(a.time).localeCompare(String(b.time)));const picks:Program[]=[];for(const kind of ['sport','fiction','entertainment']){const hit=ranked.find(p=>bucket(p)===kind&&!picks.some(x=>x.id===p.id));if(hit)picks.push(hit)}for(const p of ranked){if(picks.length>=3)break;if(!picks.some(x=>x.id===p.id))picks.push(p)}return picks.slice(0,3)},[programs,now]);"
           if old not in s:
               if new in s:
-                  print('Prime-time selection already applied')
+                  print('Diversified audience selection already applied')
               else:
-                  raise SystemExit('featuredPrograms pattern not found')
+                  raise SystemExit('Current featuredPrograms pattern not found')
           else:
               s=s.replace(old,new,1)
               p.write_text(s)
@@ -41,5 +41,5 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src/MainApp.tsx
           git diff --cached --quiet && exit 0
-          git commit -m 'Show only prime-time programmes in daily selection'
+          git commit -m 'Select one sport one fiction and one entertainment highlight'
           git push
