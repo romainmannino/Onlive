@@ -92,6 +92,35 @@ export async function registerPushNotifications(userId:string){
   }catch(e){console.warn('Push registration failed',e);return null}
 }
 
+export async function syncFavoriteReminderSchedule(userId:string,hasFavorites:boolean){
+  try{
+    const scheduled=await Notifications.getAllScheduledNotificationsAsync();
+    for(const req of scheduled){
+      if((req.content.data as any)?.type==='favorite_reminder')await Notifications.cancelScheduledNotificationAsync(req.identifier);
+    }
+    if(hasFavorites)return;
+    const{data,error}=await supabase.auth.getUser();
+    if(error||!data.user)return;
+    const createdAt=new Date(data.user.created_at||Date.now()).getTime();
+    const now=Date.now();
+    const week=7*24*60*60*1000;
+    let due=createdAt+48*60*60*1000;
+    while(due<=now+60*1000)due+=week;
+    for(let i=0;i<12;i++){
+      const date=new Date(due+i*week);
+      await Notifications.scheduleNotificationAsync({
+        content:{
+          title:'Personnalise Onlive ⭐',
+          body:'Choisis tes clubs, sports, émissions et séries préférés pour recevoir les bons rappels.',
+          sound:'default',
+          data:{type:'favorite_reminder',userId},
+        },
+        trigger:{type:Notifications.SchedulableTriggerInputTypes.DATE,date,channelId:'onlive'},
+      });
+    }
+  }catch(e){console.warn('Favorite reminder scheduling failed',e)}
+}
+
 export async function setAppBadge(count:number){
   try{await Notifications.setBadgeCountAsync(Math.max(0,count))}catch{}
 }
