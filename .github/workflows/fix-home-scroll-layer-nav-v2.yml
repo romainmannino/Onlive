@@ -1,0 +1,132 @@
+name: Fix Home scroll layer and single glass nav v2
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-home-scroll-layer-nav-v2.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Fix Home logo layer, vertical spacing and duplicate mobile nav
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          main = Path('src/MainApp.tsx')
+          s = main.read_text()
+          original = s
+
+          # --- HOME: force true layered scroll like Leboncoin ---
+          # Fixed logo stays behind the ScrollView. The opaque white sheet scrolls over it.
+          s = s.replace(
+              '<ScrollView style={{backgroundColor:\'transparent\'}} contentContainerStyle={[s.homeContent,tabletLayout&&s.homeContentTablet]} showsVerticalScrollIndicator={false}>',
+              '<ScrollView style={{backgroundColor:\'transparent\',zIndex:2}} contentContainerStyle={[s.homeContent,tabletLayout&&s.homeContentTablet]} showsVerticalScrollIndicator={false}>',
+              1,
+          )
+
+          # Keep logo high and compact, close to the Leboncoin reference.
+          s = re.sub(
+              r"onliveTopBar:\{[^}]*\}",
+              "onliveTopBar:{position:'absolute',top:0,left:0,right:0,height:76+(Platform.OS==='android'?(NativeStatusBar.currentHeight||0):0),paddingTop:Platform.OS==='android'?(NativeStatusBar.currentHeight||0):0,backgroundColor:'#fff',alignItems:'center',justifyContent:'flex-start',zIndex:0}",
+              s,
+              count=1,
+          )
+          s = re.sub(
+              r"onLogo:\{[^}]*\}",
+              "onLogo:{width:116,height:44,marginTop:0}",
+              s,
+              count=1,
+          )
+          s = re.sub(
+              r"homeLogoSpacer:\{[^}]*\}",
+              "homeLogoSpacer:{height:76,backgroundColor:'transparent'}",
+              s,
+              count=1,
+          )
+          s = re.sub(
+              r"homeSheet:\{[^}]*\}",
+              "homeSheet:{backgroundColor:'#fff',paddingHorizontal:14,paddingTop:8,paddingBottom:24,minHeight:620,zIndex:3}",
+              s,
+              count=1,
+          )
+          s = re.sub(
+              r"homeContent:\{[^}]*\}",
+              "homeContent:{padding:0,paddingBottom:105,backgroundColor:'transparent',flexGrow:1,zIndex:2}",
+              s,
+              count=1,
+          )
+          s = re.sub(
+              r"homeContentTablet:\{[^}]*\}",
+              "homeContentTablet:{paddingHorizontal:0,paddingTop:0,paddingBottom:105}",
+              s,
+              count=1,
+          )
+
+          # Remove MainApp's old bottom nav completely: Root already renders the rounded nav.
+          # This is the ghost/duplicate menu visible underneath the transparent menu.
+          s = re.sub(r'<BottomNav active="home"[^>]*/>', '', s)
+          s = re.sub(r'<BottomNav active="contacts"[^>]*/>', '', s)
+
+          # Keep any leftover internal bottom-nav style harmless if referenced elsewhere.
+          s = re.sub(
+              r"bottomNav:\{[^}]*\}",
+              "bottomNav:{display:'none'}",
+              s,
+              count=1,
+          )
+
+          if s != original:
+              main.write_text(s)
+
+          # --- ROOT: single floating glass menu, no grey slab behind it ---
+          root = Path('src/Root.tsx')
+          r = root.read_text()
+          r_original = r
+
+          r = re.sub(
+              r"navCover:\{[^}]*\}",
+              "navCover:{position:'absolute',left:0,right:0,bottom:0,height:78,backgroundColor:'transparent',alignItems:'center',justifyContent:'flex-start',paddingTop:6,zIndex:50}",
+              r,
+              count=1,
+          )
+          r = re.sub(
+              r"compactNav:\{[^}]*\}",
+              "compactNav:{width:'92%',height:58,backgroundColor:'rgba(255,255,255,.80)',borderRadius:29,padding:4,flexDirection:'row',borderWidth:1,borderColor:'rgba(255,255,255,.68)',shadowColor:'#000',shadowOpacity:.10,shadowRadius:12,shadowOffset:{width:0,height:3},elevation:7}",
+              r,
+              count=1,
+          )
+          r = re.sub(r"root:\{[^}]*\}", "root:{flex:1,backgroundColor:'#fff'}", r, count=1)
+
+          if r != r_original:
+              root.write_text(r)
+
+          print('MainApp changed:', s != original)
+          print('Root changed:', r != r_original)
+          PY
+      - name: TypeScript check
+        run: npx tsc --noEmit
+      - name: Commit app changes
+        run: |
+          if git diff --quiet; then
+            echo "Nothing to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx src/Root.tsx
+          git commit -m "Fix Home scroll overlay spacing and remove duplicate nav"
+          git push
