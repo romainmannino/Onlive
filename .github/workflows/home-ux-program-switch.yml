@@ -1,0 +1,60 @@
+name: Home UX program switch
+
+on:
+  push:
+    paths:
+      - '.github/workflows/home-ux-program-switch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply Home UX changes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('src/MainApp.tsx')
+          s=p.read_text()
+          original=s
+
+          # 1) Slightly tighten the top area: move "Choisis ton programme" up ~10 px.
+          s=s.replace("scrollLogoHeader:{height:82,backgroundColor:'#fff',alignItems:'center',justifyContent:'flex-start',paddingTop:10}",
+                      "scrollLogoHeader:{height:72,backgroundColor:'#fff',alignItems:'center',justifyContent:'flex-start',paddingTop:8}",1)
+
+          # 2) Any program selection automatically closes the expanded program guide.
+          s=s.replace("async function chooseProgram(program:Program){if(!userId)return;if(selectedProgram?.id===program.id)return goOfflive();",
+                      "async function chooseProgram(program:Program){if(!userId)return;setProgramGuideOpen(false);if(selectedProgram?.id===program.id)return goOfflive();",1)
+
+          # 3) If a friend watches another program, offer a discreet switch-and-chat action.
+          old="""if(canChat){onStartChat?.(target);return}if(!selectedProgram){setAttentionFlash(true);setTimeout(()=>setAttentionFlash(false),3000);return}onStartChat?.(target)"""
+          new="""if(canChat){onStartChat?.(target);return}if(!selectedProgram){setAttentionFlash(true);setTimeout(()=>setAttentionFlash(false),3000);return}Alert.alert('Programme différent',`Tu peux voir que ${f.name} est Onlive, mais vous devez regarder le même programme pour discuter.`,[{text:'Rester sur mon programme',style:'cancel'},{text:`Rejoindre « ${f.program} »`,onPress:async()=>{const friendProgram=programs.find(p=>p.id===f.programId);if(!friendProgram){Alert.alert('Programme indisponible','Ce programme n’est plus disponible dans la sélection actuelle.');return}await chooseProgram(friendProgram);onStartChat?.(target)}}])"""
+          if old not in s:
+              raise SystemExit('Friend tap pattern not found')
+          s=s.replace(old,new,1)
+
+          if s==original:
+              raise SystemExit('No change applied')
+          p.write_text(s)
+          PY
+      - name: TypeScript check
+        run: npx tsc --noEmit
+      - name: Commit app changes
+        run: |
+          if git diff --quiet; then echo 'Nothing to commit'; exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/MainApp.tsx
+          git commit -m 'Polish Home spacing program guide and friend program switch'
+          git push
