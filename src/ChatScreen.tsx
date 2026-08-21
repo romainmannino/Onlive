@@ -5,7 +5,7 @@ import{Ionicons}from'@expo/vector-icons';
 import{LinearGradient}from'expo-linear-gradient';
 import*as Contacts from'expo-contacts';
 import{supabase}from'./supabase';
-import{pushChatInvite}from'./notifications';
+import{pushChatInvite,pushChatMessage}from'./notifications';
 import ReviewChatScreen from'./ReviewChatScreen';
 
 type KnownPerson={userId:string;name:string;image?:string};
@@ -31,7 +31,7 @@ export default function ChatScreen({userId,initialTarget,initialRoomId,unreadCou
  async function loadRooms(){const{data:status}=await supabase.from('live_status').select('is_live,program_id,tv_programs(title,channel)').eq('user_id',userId).maybeSingle();const programId=status?.is_live?status?.program_id:null;const title=(status as any)?.tv_programs?.title||'',channel=(status as any)?.tv_programs?.channel||'';setCurrentProgram(programId?{id:String(programId),title,channel}:null);const{data}=await supabase.rpc('my_chat_rooms_v2');const all=((data||[])as Room[]).map(r=>({...r,unread_count:Number(r.unread_count)||0}));setRooms(programId?all.filter(r=>r.program_id===programId):[]);const{data:count}=await supabase.rpc('chat_unread_count');onUnreadChange(Number(count)||0)}
  async function openRoom(id:string){await supabase.rpc('mark_chat_read',{p_room_id:id});const{data}=await supabase.rpc('chat_messages_for',{p_room_id:id});setMessages((data||[])as Msg[]);await loadRooms()}
  async function start(p:ChatTarget){const{data,error}=await supabase.rpc('start_chat_with',{target_user:p.userId,p_program_id:p.programId,p_program_title:p.programTitle});if(error)return Alert.alert('Discussion impossible',error.message);await loadRooms();setRoomId(data as string)}
- async function send(){const body=text.trim();if(!body||!roomId)return;const{error}=await supabase.rpc('send_chat_message',{p_room_id:roomId,p_body:body});if(error)return Alert.alert('Message impossible',error.message);setText('');await openRoom(roomId)}
+ async function send(){const body=text.trim();if(!body||!roomId)return;const{error}=await supabase.rpc('send_chat_message',{p_room_id:roomId,p_body:body});if(error)return Alert.alert('Message impossible',error.message);pushChatMessage(roomId,body).then(({error:e})=>{if(e)console.warn('Push chat message',e.message)}).catch(()=>{});setText('');await openRoom(roomId)}
  async function invite(p:KnownPerson){if(!roomId)return;const{error}=await supabase.rpc('invite_chat_member',{p_room_id:roomId,p_user_id:p.userId});if(error)return Alert.alert('Invitation impossible',error.message);pushChatInvite(roomId,p.userId).then(({error:e})=>{if(e)console.warn('Push chat invite',e.message)}).catch(()=>{});setInviteOpen(false);loadRooms()}
  function reportSafety(){if(!roomId)return;Alert.alert('Signaler un problème de sécurité','Utilise ce signalement pour tout contenu ou comportement préoccupant, notamment concernant la sécurité des enfants. Le signalement sera transmis à Onlive pour examen.',[{text:'Annuler',style:'cancel'},{text:'Envoyer le signalement',style:'destructive',onPress:async()=>{const{error}=await supabase.from('safety_reports').insert({reporter_id:userId,room_id:roomId,category:'child_safety'});if(error)return Alert.alert('Signalement impossible','Réessaie dans quelques instants.');Alert.alert('Signalement envoyé','Merci. Onlive examinera ce signalement dans les meilleurs délais.')}}])}
  const label=(ids:string[])=>{const o=ids.filter(id=>id!==userId),v=o.slice(0,2).map(id=>names.get(id)||'Participant');return['Moi',...v].join(', ')+(o.length>2?` +${o.length-2}`:'')};
