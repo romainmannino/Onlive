@@ -1,5 +1,6 @@
 import React,{useEffect,useState}from'react';
-import{Alert,Image,Linking,Modal,StyleSheet,Text,TextInput,TouchableOpacity,useWindowDimensions,View}from'react-native';
+import{Text,TextInput}from'./Typography';
+import{Alert,Image,Linking,Modal,StyleSheet,TouchableOpacity,useWindowDimensions,View}from'react-native';
 import AsyncStorage from'@react-native-async-storage/async-storage';
 import{Ionicons}from'@expo/vector-icons';
 import{LinearGradient}from'expo-linear-gradient';

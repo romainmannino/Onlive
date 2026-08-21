@@ -1,5 +1,6 @@
 import React,{useState}from'react';
-import{FlatList,Image,KeyboardAvoidingView,Platform,SafeAreaView,StyleSheet,Text,TextInput,TouchableOpacity,View}from'react-native';
+import{Text,TextInput}from'./Typography';
+import{FlatList,Image,KeyboardAvoidingView,Platform,SafeAreaView,StyleSheet,TouchableOpacity,View}from'react-native';
 import{Ionicons}from'@expo/vector-icons';
 import{LinearGradient}from'expo-linear-gradient';
 

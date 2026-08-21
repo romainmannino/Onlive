@@ -1,5 +1,6 @@
 import React,{useEffect,useMemo,useState}from'react';
-import{Alert,FlatList,Image,Linking,Modal,SafeAreaView,ScrollView,Share,StyleSheet,Text,TextInput,TouchableOpacity,View,useWindowDimensions,Platform,StatusBar as NativeStatusBar}from'react-native';
+import{Text,TextInput}from'./Typography';
+import{Alert,FlatList,Image,Linking,Modal,SafeAreaView,ScrollView,Share,StyleSheet,TouchableOpacity,View,useWindowDimensions,Platform,StatusBar as NativeStatusBar}from'react-native';
 import{StatusBar}from'expo-status-bar';
 import{LinearGradient}from'expo-linear-gradient';
 import*as Contacts from'expo-contacts';
