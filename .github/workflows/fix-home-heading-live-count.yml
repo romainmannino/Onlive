@@ -32,11 +32,9 @@ jobs:
           new="<Text style={[s.introTitle,attentionFlash&&s.introTitleAttention,{fontWeight:'600'}]}>Choisis ton programme</Text>"
           if old in s:
               s=s.replace(old,new,1)
-          elif new not in s:
-              raise SystemExit('Unexpected intro title markup')
 
-          old2="<Text style={[s.sectionTitle,s.liveSectionTitle]}>Ils sont Onlive ({liveFriends.length})</Text>"
-          new2="<View style={{flexDirection:'row',alignItems:'center',gap:7}}><Text style={[s.sectionTitle,s.liveSectionTitle,{fontWeight:'600'}]}>Ils sont ONLIVE</Text>{liveFriends.length>0&&<View style={{minWidth:20,height:20,paddingHorizontal:6,borderRadius:10,backgroundColor:'rgba(107,44,255,.12)',alignItems:'center',justifyContent:'center'}}><Text style={{fontSize:11,fontWeight:'700',color:'#6b2cff'}}>{liveFriends.length}</Text></View>}</View>"
+          old2="<View style={{flexDirection:'row',alignItems:'center',gap:7}}><Text style={[s.sectionTitle,s.liveSectionTitle,{fontWeight:'600'}]}>Ils sont ONLIVE</Text>{liveFriends.length>0&&<View style={{minWidth:20,height:20,paddingHorizontal:6,borderRadius:10,backgroundColor:'rgba(107,44,255,.12)',alignItems:'center',justifyContent:'center'}}><Text style={{fontSize:11,fontWeight:'700',color:'#6b2cff'}}>{liveFriends.length}</Text></View>}</View>"
+          new2="<View style={{flexDirection:'row',alignItems:'center',gap:7}}><Text style={[s.sectionTitle,s.liveSectionTitle,{fontWeight:'600'}]}>Ils sont <Text style={{fontWeight:'300',letterSpacing:-1.4}}>on</Text><Text style={{fontWeight:'600',letterSpacing:.2}}>LIVE</Text></Text>{liveFriends.length>0&&<View style={{minWidth:20,height:20,paddingHorizontal:6,borderRadius:10,backgroundColor:'rgba(107,44,255,.12)',alignItems:'center',justifyContent:'center'}}><Text style={{fontSize:11,fontWeight:'700',color:'#6b2cff'}}>{liveFriends.length}</Text></View>}</View>"
           if old2 in s:
               s=s.replace(old2,new2,1)
           elif new2 not in s:
@@ -54,5 +52,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/MainApp.tsx
-          git commit -m "Refine Home headings and subtle Onlive count"
+          git commit -m "Style onLIVE heading like brand logo"
           git push
