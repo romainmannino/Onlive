@@ -1,0 +1,63 @@
+name: Fix Home logo position final
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-home-logo-spacing-final.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Fix Home header spacing
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('src/MainApp.tsx')
+          s=p.read_text()
+          original=s
+
+          old="""return<SafeAreaView style={[s.screen,{backgroundColor:'#fff'}]}><StatusBar style=\"dark\"/><View pointerEvents=\"none\" style={s.onliveTopBar}><Image source={LOGO_ON} resizeMode=\"contain\" style={s.onLogo}/></View><ScrollView style={{backgroundColor:'transparent',zIndex:2}} contentContainerStyle={[s.homeContent,tabletLayout&&s.homeContentTablet]} showsVerticalScrollIndicator={false}><View style={s.homeLogoSpacer}/><View style={s.homeSheet}>"""
+          new="""return<SafeAreaView style={[s.screen,{backgroundColor:'#fff'}]}><StatusBar style=\"dark\"/><ScrollView style={{backgroundColor:'#fff',zIndex:2}} contentContainerStyle={[s.homeContent,tabletLayout&&s.homeContentTablet]} showsVerticalScrollIndicator={false}><View style={s.scrollLogoHeader}><Image source={LOGO_ON} resizeMode=\"contain\" style={s.onLogo}/></View><View style={s.homeSheet}>"""
+          if old in s:
+              s=s.replace(old,new,1)
+          else:
+              print('Render header pattern already changed or not found')
+
+          oldstyles="""screen:{flex:1,backgroundColor:'#fff'},homeContent:{padding:0,paddingBottom:105,backgroundColor:'transparent',flexGrow:1,zIndex:2},onliveTopBar:{position:'absolute',top:0,left:0,right:0,height:76+(Platform.OS==='android'?(NativeStatusBar.currentHeight||0):0),paddingTop:Platform.OS==='android'?(NativeStatusBar.currentHeight||0):0,backgroundColor:'#fff',alignItems:'center',justifyContent:'flex-start',zIndex:0},onLogo:{width:116,height:44,marginTop:0},homeLogoSpacer:{height:76,backgroundColor:'transparent'},homeSheet:{backgroundColor:'#fff',paddingHorizontal:14,paddingTop:8,paddingBottom:24,minHeight:620,zIndex:3}"""
+          newstyles="""screen:{flex:1,backgroundColor:'#fff'},homeContent:{padding:0,paddingBottom:105,backgroundColor:'#fff',flexGrow:1,zIndex:2},onliveTopBar:{display:'none'},onLogo:{width:124,height:46,marginTop:0},homeLogoSpacer:{height:0},scrollLogoHeader:{height:82,backgroundColor:'#fff',alignItems:'center',justifyContent:'flex-start',paddingTop:10},homeSheet:{backgroundColor:'#fff',paddingHorizontal:14,paddingTop:6,paddingBottom:24,minHeight:620,zIndex:3}"""
+          if oldstyles in s:
+              s=s.replace(oldstyles,newstyles,1)
+          else:
+              print('Style pattern not found; trying smaller replacements')
+              s=s.replace("homeContent:{padding:0,paddingBottom:105,backgroundColor:'transparent',flexGrow:1,zIndex:2}","homeContent:{padding:0,paddingBottom:105,backgroundColor:'#fff',flexGrow:1,zIndex:2}",1)
+              s=s.replace("onliveTopBar:{position:'absolute',top:0,left:0,right:0,height:76+(Platform.OS==='android'?(NativeStatusBar.currentHeight||0):0),paddingTop:Platform.OS==='android'?(NativeStatusBar.currentHeight||0):0,backgroundColor:'#fff',alignItems:'center',justifyContent:'flex-start',zIndex:0}","onliveTopBar:{display:'none'}",1)
+              s=s.replace("onLogo:{width:116,height:44,marginTop:0}","onLogo:{width:124,height:46,marginTop:0}",1)
+              s=s.replace("homeLogoSpacer:{height:76,backgroundColor:'transparent'}", "homeLogoSpacer:{height:0},scrollLogoHeader:{height:82,backgroundColor:'#fff',alignItems:'center',justifyContent:'flex-start',paddingTop:10}",1)
+              s=s.replace("homeSheet:{backgroundColor:'#fff',paddingHorizontal:14,paddingTop:8,paddingBottom:24,minHeight:620,zIndex:3}","homeSheet:{backgroundColor:'#fff',paddingHorizontal:14,paddingTop:6,paddingBottom:24,minHeight:620,zIndex:3}",1)
+
+          if s==original:
+              raise SystemExit('No change applied')
+          p.write_text(s)
+          PY
+      - name: TypeScript check
+        run: npx tsc --noEmit
+      - name: Commit app changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/MainApp.tsx
+          git commit -m 'Fix Home logo position and compact top spacing'
+          git push
