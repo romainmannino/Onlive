@@ -1,0 +1,116 @@
+name: Fix Home Leboncoin scroll and glass nav
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-home-leboncoin-scroll-and-glass-nav.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply Leboncoin-style Home scroll and transparent mobile nav
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          main = Path('src/MainApp.tsx')
+          s = main.read_text()
+          original = s
+
+          old_start = '''return<SafeAreaView style={[s.screen,{backgroundColor:'#fff'}]}><StatusBar style="dark"/><ScrollView contentContainerStyle={[s.homeContent,tabletLayout&&s.homeContentTablet,{backgroundColor:'#fff',paddingBottom:110}]}><View style={{height:68,alignItems:'center',justifyContent:'center'}}><Image source={LOGO_ON} resizeMode="contain" style={[s.onLogo,{width:124,height:50}]}/></View><View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:12,marginTop:8}}>'''
+          new_start = '''return<SafeAreaView style={[s.screen,{backgroundColor:'#fff'}]}><StatusBar style="dark"/><View pointerEvents="none" style={s.onliveTopBar}><Image source={LOGO_ON} resizeMode="contain" style={s.onLogo}/></View><ScrollView style={{backgroundColor:'transparent'}} contentContainerStyle={[s.homeContent,tabletLayout&&s.homeContentTablet]} showsVerticalScrollIndicator={false}><View style={s.homeLogoSpacer}/><View style={s.homeSheet}><View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:12,marginTop:0}}>'''
+          if old_start in s:
+              s = s.replace(old_start, new_start, 1)
+          elif 'style={s.homeLogoSpacer}' not in s:
+              raise SystemExit('Home start target not found')
+
+          old_end = '''</View></ScrollView><BottomNav active="home" unreadCount={unreadCount}'''
+          new_end = '''</View></View></ScrollView><BottomNav active="home" unreadCount={unreadCount}'''
+          if old_end in s:
+              s = s.replace(old_end, new_end, 1)
+          elif '</View></View></ScrollView><BottomNav active="home"' not in s:
+              raise SystemExit('Home end target not found')
+
+          s = s.replace(
+              "homeContent:{padding:14,paddingTop:112,paddingBottom:26,backgroundColor:'#fff',flexGrow:1,zIndex:1}",
+              "homeContent:{padding:0,paddingBottom:0,backgroundColor:'transparent',flexGrow:1,zIndex:1}",
+              1,
+          )
+          s = s.replace(
+              "onliveTopBar:{position:'absolute',top:0,left:0,right:0,height:102+(Platform.OS==='android'?(NativeStatusBar.currentHeight||0):0),paddingTop:Platform.OS==='android'?(NativeStatusBar.currentHeight||0):0,backgroundColor:'#fff',alignItems:'center',justifyContent:'flex-start',zIndex:0}",
+              "onliveTopBar:{position:'absolute',top:0,left:0,right:0,height:106+(Platform.OS==='android'?(NativeStatusBar.currentHeight||0):0),paddingTop:Platform.OS==='android'?(NativeStatusBar.currentHeight||0):0,backgroundColor:'#fff',alignItems:'center',justifyContent:'flex-start',zIndex:0}",
+              1,
+          )
+          s = s.replace(
+              "onLogo:{width:122,height:48,marginTop:4}",
+              "onLogo:{width:126,height:50,marginTop:2}",
+              1,
+          )
+          s = s.replace(
+              "homeContentTablet:{paddingHorizontal:18,paddingTop:112,paddingBottom:26}",
+              "homeContentTablet:{paddingHorizontal:0,paddingTop:0,paddingBottom:0}",
+              1,
+          )
+
+          marker = "favoriteTopButton:{width:34,height:34,alignItems:'center',justifyContent:'center'}"
+          if 'homeLogoSpacer:' not in s:
+              s = s.replace(marker, "homeLogoSpacer:{height:112,backgroundColor:'transparent'},homeSheet:{backgroundColor:'#fff',paddingHorizontal:14,paddingTop:16,paddingBottom:24,minHeight:620}," + marker, 1)
+
+          # MainApp nav itself: no opaque rectangle.
+          s = s.replace(
+              "bottomNav:{position:'absolute',left:0,right:0,bottom:0,height:78,backgroundColor:'rgba(255,255,255,.86)',flexDirection:'row',zIndex:20}",
+              "bottomNav:{position:'absolute',left:0,right:0,bottom:0,height:78,backgroundColor:'transparent',flexDirection:'row',zIndex:20}",
+              1,
+          )
+
+          if s != original:
+              main.write_text(s)
+
+          root = Path('src/Root.tsx')
+          r = root.read_text()
+          r_original = r
+
+          # This was the grey slab visible behind the rounded mobile menu.
+          r = r.replace(
+              "navCover:{position:'absolute',left:0,right:0,bottom:0,height:78,backgroundColor:'#f6f6f8',alignItems:'center',justifyContent:'flex-start',paddingTop:6}",
+              "navCover:{position:'absolute',left:0,right:0,bottom:0,height:78,backgroundColor:'transparent',alignItems:'center',justifyContent:'flex-start',paddingTop:6,zIndex:50}",
+              1,
+          )
+          r = r.replace(
+              "compactNav:{width:'92%',height:58,backgroundColor:'#fff',borderRadius:29,padding:4,flexDirection:'row',shadowColor:'#000',shadowOpacity:.12,shadowRadius:10,shadowOffset:{width:0,height:3},elevation:7}",
+              "compactNav:{width:'92%',height:58,backgroundColor:'rgba(255,255,255,.82)',borderRadius:29,padding:4,flexDirection:'row',borderWidth:1,borderColor:'rgba(255,255,255,.72)',shadowColor:'#000',shadowOpacity:.10,shadowRadius:12,shadowOffset:{width:0,height:3},elevation:7}",
+              1,
+          )
+          r = r.replace("root:{flex:1}", "root:{flex:1,backgroundColor:'#fff'}", 1)
+
+          if r != r_original:
+              root.write_text(r)
+
+          print('Main changed:', s != original)
+          print('Root changed:', r != r_original)
+          PY
+      - name: TypeScript check
+        run: npx tsc --noEmit
+      - name: Commit app changes
+        run: |
+          if git diff --quiet; then
+            echo "Nothing to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx src/Root.tsx
+          git commit -m "Fix Home fixed logo scroll cover and glass bottom nav"
+          git push
