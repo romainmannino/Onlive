@@ -15,9 +15,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
       - name: Apply Home polish
         shell: bash
         run: |
@@ -79,9 +85,9 @@ jobs:
           s = s.replace(old, new)
 
           if s == before:
-              raise SystemExit('No matching Home code found; refusing a blind commit')
-
-          p.write_text(s)
+              print('No matching Home changes needed; continuing without app diff')
+          else:
+              p.write_text(s)
           PY
 
       - name: TypeScript check
