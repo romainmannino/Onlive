@@ -1,0 +1,75 @@
+name: Refine Home scroll logo and translucent nav
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/refine-home-scroll-logo-nav.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Patch Home shell
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/MainApp.tsx')
+          s=p.read_text()
+          original=s
+
+          # Home root must be pure white so no grey strip can remain behind the nav.
+          s=s.replace("screen:{flex:1,backgroundColor:'#f6f6f8'}","screen:{flex:1,backgroundColor:'#fff'}")
+
+          # Logo: slightly higher, centered, and prepared as a fixed background layer.
+          s=s.replace("onliveTopBar:{height:54+(Platform.OS==='android'?(NativeStatusBar.currentHeight||0):0),paddingTop:Platform.OS==='android'?(NativeStatusBar.currentHeight||0):0,backgroundColor:'#fff',paddingHorizontal:14,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},onLogo:{width:108,height:43}",
+                      "onliveTopBar:{position:'absolute',top:0,left:0,right:0,height:102+(Platform.OS==='android'?(NativeStatusBar.currentHeight||0):0),paddingTop:Platform.OS==='android'?(NativeStatusBar.currentHeight||0):0,backgroundColor:'#fff',alignItems:'center',justifyContent:'flex-start',zIndex:0},onLogo:{width:122,height:48,marginTop:4}")
+
+          # Scroll content starts below the fixed logo. Its white surface scrolls upward over the logo,
+          # reproducing the Leboncoin-like masking effect instead of moving the logo with the page.
+          s=s.replace("homeContent:{padding:14,paddingBottom:92,backgroundColor:'#fff',flexGrow:1}",
+                      "homeContent:{padding:14,paddingTop:112,paddingBottom:26,backgroundColor:'#fff',flexGrow:1,zIndex:1}")
+          s=s.replace("homeContentTablet:{paddingHorizontal:18,paddingTop:8,paddingBottom:92}",
+                      "homeContentTablet:{paddingHorizontal:18,paddingTop:112,paddingBottom:26}")
+
+          # Make the actual bottom nav translucent and remove opaque children that hid the effect.
+          s=s.replace("bottomNav:{position:'absolute',left:0,right:0,bottom:0,height:78,backgroundColor:'#fff',flexDirection:'row'}",
+                      "bottomNav:{position:'absolute',left:10,right:10,bottom:8,height:70,backgroundColor:'rgba(255,255,255,.84)',flexDirection:'row',borderRadius:34,overflow:'hidden',zIndex:50,elevation:10,shadowColor:'#000',shadowOpacity:.08,shadowRadius:12,shadowOffset:{width:0,height:4}}")
+          s=s.replace("navInactive:{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:'#fff'}",
+                      "navInactive:{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:'transparent'}")
+
+          # Let long ONLIVE lists physically continue behind the floating nav.
+          s=s.replace("liveZone:{backgroundColor:'#f6f6f8',marginHorizontal:-14,paddingHorizontal:14,paddingTop:14,paddingBottom:190",
+                      "liveZone:{backgroundColor:'#fff',marginHorizontal:-14,paddingHorizontal:14,paddingTop:14,paddingBottom:92")
+
+          if s == original:
+              print('No textual patch needed; current source may already contain these refinements.')
+          else:
+              p.write_text(s)
+              print('Home shell patched.')
+          PY
+      - name: Install dependencies
+        run: npm ci
+      - name: TypeScript check
+        run: npx tsc --noEmit
+      - name: Commit app change
+        run: |
+          if git diff --quiet -- src/MainApp.tsx; then
+            echo "No app change to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx
+          git commit -m "Polish Home fixed logo scroll and translucent nav"
+          git push
