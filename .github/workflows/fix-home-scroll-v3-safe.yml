@@ -1,0 +1,58 @@
+name: Fix Home scroll v3 safe
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-home-scroll-v3-safe.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Patch Home safely
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('src/MainApp.tsx')
+          s=p.read_text()
+          original=s
+          replacements={
+          "style={{backgroundColor:'transparent'}} contentContainerStyle={[s.homeContent,tabletLayout&&s.homeContentTablet]}":"style={{backgroundColor:'transparent',zIndex:2}} contentContainerStyle={[s.homeContent,tabletLayout&&s.homeContentTablet]}",
+          "onliveTopBar:{position:'absolute',top:0,left:0,right:0,height:106+(Platform.OS==='android'?(NativeStatusBar.currentHeight||0):0),paddingTop:Platform.OS==='android'?(NativeStatusBar.currentHeight||0):0,backgroundColor:'#fff',alignItems:'center',justifyContent:'flex-start',zIndex:0}":"onliveTopBar:{position:'absolute',top:0,left:0,right:0,height:76+(Platform.OS==='android'?(NativeStatusBar.currentHeight||0):0),paddingTop:Platform.OS==='android'?(NativeStatusBar.currentHeight||0):0,backgroundColor:'#fff',alignItems:'center',justifyContent:'flex-start',zIndex:0}",
+          "onLogo:{width:126,height:50,marginTop:2}":"onLogo:{width:116,height:44,marginTop:0}",
+          "homeLogoSpacer:{height:112,backgroundColor:'transparent'}":"homeLogoSpacer:{height:76,backgroundColor:'transparent'}",
+          "homeSheet:{backgroundColor:'#fff',paddingHorizontal:14,paddingTop:16,paddingBottom:24,minHeight:620}":"homeSheet:{backgroundColor:'#fff',paddingHorizontal:14,paddingTop:8,paddingBottom:24,minHeight:620,zIndex:3}",
+          "homeContent:{padding:0,paddingBottom:0,backgroundColor:'transparent',flexGrow:1,zIndex:1}":"homeContent:{padding:0,paddingBottom:105,backgroundColor:'transparent',flexGrow:1,zIndex:2}",
+          "homeContentTablet:{paddingHorizontal:0,paddingTop:0,paddingBottom:0}":"homeContentTablet:{paddingHorizontal:0,paddingTop:0,paddingBottom:105}",
+          }
+          for a,b in replacements.items():
+              if a in s: s=s.replace(a,b,1)
+
+          # Do not mutate Root styles using regex: nested shadowOffset braces made the previous workflow invalid TS.
+          # Root already owns the rounded navigation. Hide MainApp's legacy bar without touching JSX structure.
+          s=s.replace("bottomNav:{position:'absolute',left:0,right:0,bottom:0,height:78,backgroundColor:'transparent',flexDirection:'row',zIndex:20}","bottomNav:{display:'none'}",1)
+          if s!=original:p.write_text(s)
+          print('MainApp changed:',s!=original)
+          PY
+      - name: TypeScript check
+        run: npx tsc --noEmit
+      - name: Commit app changes
+        run: |
+          if git diff --quiet; then echo 'Nothing to commit'; exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/MainApp.tsx
+          git commit -m 'Fix Home logo height scroll overlay and duplicate nav safely'
+          git push
