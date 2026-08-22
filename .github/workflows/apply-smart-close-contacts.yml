@@ -1,0 +1,63 @@
+name: Apply smart close contacts
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-smart-close-contacts.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Rank close contacts and trigger automatic Onlive alerts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p=Path('src/MainApp.tsx')
+          s=p.read_text()
+
+          old="const[contactSearch,setContactSearch]=useState('');const[contactFilter,setContactFilter]=useState<ContactFilter>('Tous');const[contactScores,setContactScores]=useState<Record<string,number>>({});"
+          new="const[contactSearch,setContactSearch]=useState('');const[contactFilter,setContactFilter]=useState<ContactFilter>('Tous');const[contactScores,setContactScores]=useState<Record<string,number>>({});const[relationshipScores,setRelationshipScores]=useState<Record<string,number>>({});"
+          if old not in s: raise SystemExit('relationship state anchor missing')
+          s=s.replace(old,new,1)
+
+          old="useEffect(()=>{if(profileOpenSignal>0)setProfileOpen(true)},[profileOpenSignal]);"
+          new="""useEffect(()=>{if(profileOpenSignal>0)setProfileOpen(true)},[profileOpenSignal]);
+  useEffect(()=>{if(!userId||reviewMode)return;let stopped=false;const load=async()=>{const{data,error}=await supabase.rpc('my_relationship_scores');if(stopped||error)return;const next:Record<string,number>={};(data||[]).forEach((r:any)=>{if(r.relationship_user_id)next[r.relationship_user_id]=Number(r.relationship_score||0)});setRelationshipScores(next)};load();const timer=setInterval(load,15000);return()=>{stopped=true;clearInterval(timer)}},[userId,reviewMode]);"""
+          if old not in s: raise SystemExit('profile effect anchor missing')
+          s=s.replace(old,new,1)
+
+          old="const sortedLiveFriends=useMemo(()=>{const q=liveSearch.trim().toLowerCase();return[...liveFriends].filter(f=>!q||f.name.toLowerCase().includes(q)).sort((a,b)=>{const aSame=Boolean(selectedProgram&&a.programId===selectedProgram.id),bSame=Boolean(selectedProgram&&b.programId===selectedProgram.id);if(aSame!==bSame)return aSame?-1:1;const am=Number(a.since.match(/\\d+/)?.[0]||999),bm=Number(b.since.match(/\\d+/)?.[0]||999);if(am!==bm)return am-bm;return a.name.localeCompare(b.name,'fr')})},[liveFriends,selectedProgram,liveSearch]);"
+          new="const sortedLiveFriends=useMemo(()=>{const q=liveSearch.trim().toLowerCase();return[...liveFriends].filter(f=>!q||f.name.toLowerCase().includes(q)).sort((a,b)=>{const ar=relationshipScores[a.userId]||0,br=relationshipScores[b.userId]||0;if(ar!==br)return br-ar;const aSame=Boolean(selectedProgram&&a.programId===selectedProgram.id),bSame=Boolean(selectedProgram&&b.programId===selectedProgram.id);if(aSame!==bSame)return aSame?-1:1;const am=Number(a.since.match(/\\d+/)?.[0]||999),bm=Number(b.since.match(/\\d+/)?.[0]||999);if(am!==bm)return am-bm;return a.name.localeCompare(b.name,'fr')})},[liveFriends,selectedProgram,liveSearch,relationshipScores]);"
+          if old not in s: raise SystemExit('sortedLiveFriends anchor missing')
+          s=s.replace(old,new,1)
+
+          old="if(error)return Alert.alert('Impossible de passer Onlive',error.message);setSelectedProgram(program)}"
+          new="if(error)return Alert.alert('Impossible de passer Onlive',error.message);setSelectedProgram(program);supabase.functions.invoke('send-onlive-push',{body:{type:'auto_watching',program_id:program.id,program_title:program.title,program_channel:program.channel}}).catch(e=>console.warn('Close contact notification failed',e))}"
+          if old not in s: raise SystemExit('chooseProgram anchor missing')
+          s=s.replace(old,new,1)
+
+          old='<Text style={s.friendNameCompact}>{f.name}</Text>'
+          new="<Text style={s.friendNameCompact}>{f.name}{(relationshipScores[f.userId]||0)>0?' ★':''}</Text>"
+          if old not in s: raise SystemExit('friend name anchor missing')
+          s=s.replace(old,new,1)
+
+          p.write_text(s)
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Rank close contacts and send automatic Onlive alerts"
+          git push
