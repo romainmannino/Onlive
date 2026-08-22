@@ -1,6 +1,7 @@
 name: Apply smart close contacts
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
