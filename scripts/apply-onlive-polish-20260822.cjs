@@ -17,7 +17,7 @@ patchFile('src/MainApp.tsx',[
   ["f.programId?`${f.startTime&&(()=>{const[h,m]=f.startTime.split(':').map(Number);const d=new Date();d.setHours(h||0,m||0,0,0);return Date.now()<d.getTime()})()?'va regarder':'regarde'} ${f.channel}`:'est devant la TV'","f.programId?`${f.startTime&&(()=>{const[h,m]=f.startTime.split(':').map(Number);const d=new Date();d.setHours(h||0,m||0,0,0);return Date.now()<d.getTime()})()?'va regarder':'regarde'} ${f.channel}`:'🥱 glande devant la TV'",'friend browsing wording'],
   ["Alert.alert('Passer Onlive',`Pour discuter avec ${f.name}, indique que tu es devant la TV.`,[{text:'Rester Offlive',style:'cancel'},{text:'Je zappe',onPress:async()=>{await setBrowsingPresence(true);onStartChat?.(target)}}])","Alert.alert('Passer Onlive',`Pour discuter avec ${f.name}, indique que tu glandes devant la TV.`,[{text:'Rester Offlive',style:'cancel'},{text:'Je glande',onPress:async()=>{await setBrowsingPresence(true);onStartChat?.(target)}}])",'join browsing wording'],
   ['<View style={s.emptyFriends}><ActivityIndicator size="small" color="#6b2cff"/><Text style={[s.emptyTitle,{fontWeight:\'500\',marginTop:8}]}>ONLIVE</Text></View>','<View style={s.emptyFriends}><ActivityIndicator size="small" color="#6b2cff"/></View>','loader label'],
-  ["<Switch style={Platform.OS==='ios'?{transform:[{scaleX:.72},{scaleY:.72},{translateY:1}],marginLeft:-8}:undefined}","<Switch style={Platform.OS==='ios'?{transform:[{scaleX:.72},{scaleY:.72},{translateY:7}],marginLeft:-8}:undefined}",'ios switch vertical alignment'],
+  ["<Switch style={Platform.OS==='ios'?{transform:[{scaleX:.72},{scaleY:.72},{translateY:1}],marginLeft:-8}:undefined}","<Switch style={Platform.OS==='ios'?{transform:[{scaleX:.72},{scaleY:.72},{translateY:14}],marginLeft:-8}:undefined}",'ios switch vertical alignment'],
 ]);
 
 let c=fs.readFileSync('src/ChatScreen.tsx','utf8');
@@ -28,7 +28,6 @@ if(!c.includes('waitForActiveApp')){
   c=c.replace("const activityTime=(value:string|null)=>{if(!value)return'';const d=new Date(value),now=new Date();const start=new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime(),day=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();if(day===start)return messageTime(value);if(day===start-86400000)return'Hier';return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})};",
   "const activityTime=(value:string|null)=>{if(!value)return'';const d=new Date(value),now=new Date();const start=new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime(),day=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();if(day===start)return messageTime(value);if(day===start-86400000)return'Hier';return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})};\nconst waitForActiveApp=async()=>{for(let i=0;i<20;i++){if(AppState.currentState==='active'){await new Promise(r=>setTimeout(r,180));return}await new Promise(r=>setTimeout(r,100))}throw new Error('L’app doit être active pour utiliser le microphone.');};");
 }
-if(!c.includes("translateY:7")){}
 const start=c.indexOf('async function toggleRecording(){');
 const end=c.indexOf('async function playAudio',start);
 if(start<0||end<0) throw new Error('src/ChatScreen.tsx: toggleRecording anchor missing');
