@@ -23,8 +23,9 @@
       "bundleIdentifier": "com.romainmannino.onlive",
       "infoPlist": {
         "NSContactsUsageDescription": "Onlive utilise vos contacts pour vous montrer les proches qui utilisent déjà l'application.",
-        "NSPhotoLibraryUsageDescription": "Onlive utilise votre photothèque uniquement pour choisir votre photo de profil.",
-        "NSCameraUsageDescription": "Onlive utilise la caméra uniquement lorsque vous choisissez de prendre votre photo de profil.",
+        "NSPhotoLibraryUsageDescription": "Onlive utilise votre photothèque pour votre photo de profil et pour joindre des photos ou vidéos aux discussions.",
+        "NSCameraUsageDescription": "Onlive utilise la caméra lorsque vous choisissez de prendre une photo de profil ou d'ajouter un média.",
+        "NSMicrophoneUsageDescription": "Onlive utilise le microphone uniquement lorsque vous enregistrez un message audio dans une discussion.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -38,7 +39,8 @@
       "permissions": [
         "READ_CONTACTS",
         "POST_NOTIFICATIONS",
-        "CAMERA"
+        "CAMERA",
+        "RECORD_AUDIO"
       ]
     },
     "plugins": [
@@ -57,8 +59,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Autoriser Onlive à accéder à vos photos pour choisir votre photo de profil.",
-          "cameraPermission": "Autoriser Onlive à utiliser la caméra pour prendre votre photo de profil."
+          "photosPermission": "Autoriser Onlive à accéder à vos photos pour choisir une photo de profil ou joindre un média à une discussion.",
+          "cameraPermission": "Autoriser Onlive à utiliser la caméra pour prendre une photo ou une vidéo."
         }
       ],
       [
