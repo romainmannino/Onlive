@@ -8,7 +8,6 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "postinstall": "node scripts/apply-onlive-v2-fixed.cjs && node scripts/rename-tv-browsing-je-zappe.cjs",
     "eas-build-post-install": "npx tsc --noEmit"
   },
   "dependencies": {
