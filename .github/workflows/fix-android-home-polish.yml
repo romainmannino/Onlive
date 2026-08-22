@@ -1,0 +1,53 @@
+name: Fix Android home polish
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-android-home-polish.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Patch Android-only home spacing and typography
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/MainApp.tsx')
+          s = p.read_text()
+
+          old = '<Image source={LOGO_ON} resizeMode="contain" style={s.onLogo}/>'
+          new = '<Image source={LOGO_ON} resizeMode="contain" style={[s.onLogo,Platform.OS===\'android\'&&{transform:[{translateY:8}]}]}/>'
+          if old in s:
+              s = s.replace(old, new, 1)
+
+          old = "fontWeight:'600',marginTop:0}]}>Choisis ton programme"
+          new = "fontWeight:Platform.OS==='android'?'700':'600',marginTop:0}]}>Choisis ton programme"
+          if old in s:
+              s = s.replace(old, new, 1)
+
+          old = "s.liveSectionTitle,{fontWeight:'600'}]}>ONLIVE"
+          new = "s.liveSectionTitle,{fontWeight:Platform.OS==='android'?'700':'600'}]}>ONLIVE"
+          if old in s:
+              s = s.replace(old, new, 1)
+
+          p.write_text(s)
+          PY
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx
+          if git diff --cached --quiet; then
+            echo "No changes needed"
+          else
+            git commit -m "Polish Android home spacing and typography"
+            git push
+          fi
