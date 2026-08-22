@@ -10,6 +10,15 @@ function patchFile(path, patches){
   fs.writeFileSync(path,s);
 }
 
+// Normalize previous iOS switch offsets so this patch stays re-runnable.
+{
+  const path='src/MainApp.tsx';
+  let s=fs.readFileSync(path,'utf8');
+  s=s.replace("<Switch style={Platform.OS==='ios'?{transform:[{scaleX:.72},{scaleY:.72},{translateY:1}],marginLeft:-8}:undefined}","<Switch style={Platform.OS==='ios'?{transform:[{scaleX:.72},{scaleY:.72},{translateY:14}],marginLeft:-8}:undefined}");
+  s=s.replace("<Switch style={Platform.OS==='ios'?{transform:[{scaleX:.72},{scaleY:.72},{translateY:7}],marginLeft:-8}:undefined}","<Switch style={Platform.OS==='ios'?{transform:[{scaleX:.72},{scaleY:.72},{translateY:14}],marginLeft:-8}:undefined}");
+  fs.writeFileSync(path,s);
+}
+
 patchFile('src/MainApp.tsx',[
   ['<View style={s.topPresence}>','<View style={[s.topPresence,Platform.OS===\'android\'&&{top:30}]}>','android top presence'],
   ['<View style={s.tvPresenceRow}><View style={s.tvPresenceLabelWrap}><Ionicons name="options-outline" size={19} color="#6b2cff"/><Text style={s.tvPresenceLabel}>Je zappe</Text></View><Switch value={tvBrowsing&&!selectedProgram}','<View style={s.tvPresenceRow}><View style={s.tvPresenceLabelWrap}><LinearGradient colors={[\'#4932ff\',\'#ed00b3\']} style={s.boredEmojiBadge}><Text style={s.boredEmojiText}>🥱</Text></LinearGradient><Text style={s.tvPresenceLabel}>Je glande (devant la TV)</Text></View><Switch value={tvBrowsing&&!selectedProgram}','glande row'],
@@ -17,7 +26,6 @@ patchFile('src/MainApp.tsx',[
   ["f.programId?`${f.startTime&&(()=>{const[h,m]=f.startTime.split(':').map(Number);const d=new Date();d.setHours(h||0,m||0,0,0);return Date.now()<d.getTime()})()?'va regarder':'regarde'} ${f.channel}`:'est devant la TV'","f.programId?`${f.startTime&&(()=>{const[h,m]=f.startTime.split(':').map(Number);const d=new Date();d.setHours(h||0,m||0,0,0);return Date.now()<d.getTime()})()?'va regarder':'regarde'} ${f.channel}`:'🥱 glande devant la TV'",'friend browsing wording'],
   ["Alert.alert('Passer Onlive',`Pour discuter avec ${f.name}, indique que tu es devant la TV.`,[{text:'Rester Offlive',style:'cancel'},{text:'Je zappe',onPress:async()=>{await setBrowsingPresence(true);onStartChat?.(target)}}])","Alert.alert('Passer Onlive',`Pour discuter avec ${f.name}, indique que tu glandes devant la TV.`,[{text:'Rester Offlive',style:'cancel'},{text:'Je glande',onPress:async()=>{await setBrowsingPresence(true);onStartChat?.(target)}}])",'join browsing wording'],
   ['<View style={s.emptyFriends}><ActivityIndicator size="small" color="#6b2cff"/><Text style={[s.emptyTitle,{fontWeight:\'500\',marginTop:8}]}>ONLIVE</Text></View>','<View style={s.emptyFriends}><ActivityIndicator size="small" color="#6b2cff"/></View>','loader label'],
-  ["<Switch style={Platform.OS==='ios'?{transform:[{scaleX:.72},{scaleY:.72},{translateY:1}],marginLeft:-8}:undefined}","<Switch style={Platform.OS==='ios'?{transform:[{scaleX:.72},{scaleY:.72},{translateY:14}],marginLeft:-8}:undefined}",'ios switch vertical alignment'],
 ]);
 
 let c=fs.readFileSync('src/ChatScreen.tsx','utf8');
