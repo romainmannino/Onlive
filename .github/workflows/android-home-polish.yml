@@ -1,0 +1,92 @@
+name: Polish Android home UI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/android-home-polish.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Apply Android-only UI adjustments
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          main = Path('src/MainApp.tsx')
+          text = main.read_text()
+
+          replacements = {
+              "style={[s.introTitle,attentionFlash&&s.introTitleAttention,{fontWeight:'600',marginTop:0}]}": "style={[s.introTitle,attentionFlash&&s.introTitleAttention,{fontWeight:Platform.OS==='android'?'700':'600',marginTop:0}]}",
+              "style={[s.sectionTitle,s.liveSectionTitle,{fontWeight:'600'}]}": "style={[s.sectionTitle,s.liveSectionTitle,{fontWeight:Platform.OS==='android'?'700':'600'}]}",
+              "scrollLogoHeader:{height:72,backgroundColor:'#fff',alignItems:'center',justifyContent:'flex-start',paddingTop:8}": "scrollLogoHeader:{height:72,backgroundColor:'#fff',alignItems:'center',justifyContent:'flex-start',paddingTop:Platform.OS==='android'?16:8}",
+          }
+
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'Expected MainApp pattern not found: {old}')
+              text = text.replace(old, new, 1)
+          main.write_text(text)
+
+          typo = Path('src/Typography.tsx')
+          t = typo.read_text()
+          old = """import React,{forwardRef}from'react';
+import{Platform,Text as RNText,TextInput as RNTextInput,TextProps,TextInputProps}from'react-native';
+
+const appFontFamily=Platform.select({ios:'System',android:'sans-serif',default:'System'});
+
+export const Text=forwardRef<RNText,TextProps>(({style,...props},ref)=>(
+  <RNText ref={ref} {...props} style={[{fontFamily:appFontFamily},style]}/>
+));
+Text.displayName='OnliveText';
+
+export const TextInput=forwardRef<RNTextInput,TextInputProps>(({style,...props},ref)=>(
+  <RNTextInput ref={ref} {...props} style={[{fontFamily:appFontFamily},style]}/>
+));
+TextInput.displayName='OnliveTextInput';
+"""
+          new = """import React,{forwardRef}from'react';
+import{Platform,StyleSheet,Text as RNText,TextInput as RNTextInput,TextProps,TextInputProps}from'react-native';
+
+const appFontFamily=Platform.select({ios:'System',android:'sans-serif',default:'System'});
+const androidScale=.92;
+const androidTypography=(style:any)=>{
+  if(Platform.OS!=='android')return style;
+  const flat=StyleSheet.flatten(style)||{};
+  const scaled:any={};
+  if(typeof flat.fontSize==='number')scaled.fontSize=Math.round(flat.fontSize*androidScale*10)/10;
+  if(typeof flat.lineHeight==='number')scaled.lineHeight=Math.round(flat.lineHeight*androidScale*10)/10;
+  return[style,scaled];
+};
+
+export const Text=forwardRef<RNText,TextProps>(({style,...props},ref)=>(
+  <RNText ref={ref} {...props} style={[{fontFamily:appFontFamily},androidTypography(style)]}/>
+));
+Text.displayName='OnliveText';
+
+export const TextInput=forwardRef<RNTextInput,TextInputProps>(({style,...props},ref)=>(
+  <RNTextInput ref={ref} {...props} style={[{fontFamily:appFontFamily},androidTypography(style)]}/>
+));
+TextInput.displayName='OnliveTextInput';
+"""
+          if old not in t:
+              raise SystemExit('Expected Typography.tsx content not found')
+          typo.write_text(t.replace(old, new, 1))
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MainApp.tsx src/Typography.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Adjust Android-only home typography and logo spacing"
+          git push
