@@ -1,0 +1,22 @@
+name: Fix2 social chat v2
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix2-social-chat-v2.yml'
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch workflow anchor
+        run: |
+          sed -i 's/style_anchor=" favoriteTopButton/style_anchor="favoriteTopButton/' .github/workflows/apply-onlive-social-chat-v2.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/apply-onlive-social-chat-v2.yml
+          git diff --cached --quiet && exit 0
+          git commit -m "Fix social chat workflow style anchor"
+          git push
